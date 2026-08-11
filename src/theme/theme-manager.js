@@ -1,0 +1,6 @@
+const ROOT='#st-proactive-director';
+export function scopeCss(css){return String(css??'').replace(/(^|})(\s*)(?!@)([^{}]+)\{/g,(m,close,space,selectors)=>`${close}${space}${selectors.split(',').map(s=>`${ROOT} ${s.trim()}`).join(', ')} {`);}
+export function createThemeManager(documentRef,settingsStore){let current={enabled:false,allowGlobalCss:false,variables:{},css:''},saved=structuredClone(current),style=documentRef.createElement('style');style.id='stpd-custom-theme';documentRef.head.append(style);
+ function render(){if(!current.enabled){style.textContent='';return;}const vars=Object.entries(current.variables??{}).map(([k,v])=>`${k}:${v};`).join('');style.textContent=`${ROOT}{${vars}}\n${current.allowGlobalCss?current.css:scopeCss(current.css)}`;}
+ return{preview(t){current={...current,...structuredClone(t)};render();},async save(){saved=structuredClone(current);await settingsStore.save?.(saved);return saved;},disable(){current.enabled=false;render();},reset(){current={enabled:false,allowGlobalCss:false,variables:{},css:''};render();},rollback(){current=structuredClone(saved);render();},importTheme(t){if(t?.version!==1)throw new Error('Unsupported theme version');current={...current,...structuredClone(t.theme)};render();},exportTheme(){return{version:1,theme:structuredClone(current)};},destroy(){style.remove();}};
+}
