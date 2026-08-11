@@ -27,7 +27,7 @@ SillyTavern 前端扩展。后台导演根据角色卡人格证据规划完整�
 在 SillyTavern 的扩展管理器中选择从 URL 安装，输入：
 
 ```text
-https://github.com/你的用户名/sillytavern-proactive-director
+https://github.com/xiehuaqingxhq/just-do-it-char
 ```
 
 安装完成后重启 SillyTavern，在扩展设置中打开“主动导演”。
