@@ -6,3 +6,10 @@ test('scheduler supports every-turn, fixed-turn and cooldown', () => {
  assert.equal(s.shouldTrigger(state,{mode:'fixed',fixedTurns:3,cooldownTurns:0,dailyLimit:5}),false);
  state.counters.turns=6; assert.equal(s.shouldTrigger(state,{mode:'fixed',fixedTurns:3,cooldownTurns:0,dailyLimit:5}),true);
 });
+
+test('scheduler enforces allowed time windows and cancels idle trigger while typing', () => {
+ const s=createScheduler({clock:()=>Date.parse('2026-08-12T10:00:00Z'),random:()=>0});
+ const state={counters:{turns:4,eventsToday:0},cooldowns:{lastTurn:0}};
+ assert.equal(s.shouldTrigger(state,{mode:'every',cooldownTurns:0,dailyLimit:5,allowedWindows:[['11:00','12:00']]},{now:Date.parse('2026-08-12T10:00:00Z')}),false);
+ assert.equal(s.shouldTrigger(state,{mode:'idle',idleEnabled:true,allowedWindows:[['09:00','11:00']]},{userTyping:true}),false);
+});

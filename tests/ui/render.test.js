@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 async function source() {
-  return (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js', import.meta.url), 'utf8');
+  const fs = await import('node:fs/promises');
+  const root = new URL('../../src/ui/', import.meta.url);
+  const files = ['director-console.js', 'dom.js', 'views/event.js', 'views/cast.js', 'views/preferences.js', 'views/connection.js', 'views/world-info.js', 'views/snapshots.js', 'views/appearance.js', 'dialogs/confirm.js'];
+  return (await Promise.all(files.map((file) => fs.readFile(new URL(file, root), 'utf8')))).join('\n');
+}
+
+async function uiSource(path) {
+  return (await import('node:fs/promises')).readFile(new URL(`../../src/ui/${path}`, import.meta.url), 'utf8');
 }
 
 test('console module exports lifecycle contract', async () => {
@@ -45,4 +52,26 @@ test('console exposes selective snapshot migration', async () => {
   for (const label of ['事件框架', '角色专属历史', '原人格推断', '规则账本', '安全词与硬禁区', '导出副本', '导入副本', '撤销导入']) assert.match(text, new RegExp(label));
   assert.match(text, /exportSnapshot/);
   assert.match(text, /importSnapshot/);
+});
+
+test('console delegates views and dialogs to modular UI files', async () => {
+  const text = await source();
+  for (const moduleName of ['event', 'cast', 'preferences', 'connection', 'world-info', 'snapshots', 'appearance']) {
+    assert.match(text, new RegExp(`views/${moduleName}\\.js`));
+  }
+  for (const moduleName of ['manual-event', 'snapshot-import', 'cast-correction', 'confirm']) {
+    assert.match(text, new RegExp(`dialogs/${moduleName}\\.js`));
+  }
+});
+
+test('cast view exposes replace, merge, and split correction workflows', async () => {
+  const text = `${await uiSource('views/cast.js')}\n${await uiSource('dialogs/cast-correction.js')}`;
+  for (const label of ['校正人物', '合并人物', '拆分人物', '人物名称', '别名']) assert.match(text, new RegExp(label));
+  assert.match(text, /correctCast/);
+});
+
+test('snapshot import dialog renders summary and warnings before apply', async () => {
+  const text = await uiSource('dialogs/snapshot-import.js');
+  for (const label of ['导入预览', '活动事件', '伏笔', '人物', '安全设置', '确认导入']) assert.match(text, new RegExp(label));
+  assert.match(text, /preview\.warnings/);
 });

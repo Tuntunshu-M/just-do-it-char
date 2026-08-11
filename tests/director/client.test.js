@@ -72,3 +72,18 @@ test('independent connection failure does not fall back to main', async () => {
   await assert.rejects(client.requestDirector({ context: {}, intent: {} }, { mode: 'independent', endpoint: 'https://api.test', model: 'm' }), /500/);
   assert.equal(mainCalls, 0);
 });
+
+test('client reports timeout without leaking endpoint or API key', async () => {
+  const client = createDirectorClient({ adapter: {}, fetchImpl: (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  }) });
+  await assert.rejects(
+    client.requestDirector({ context: {}, intent: {} }, { mode: 'independent', endpoint: 'https://private.test/v1', apiKey: 'secret', model: 'm', timeoutMs: 1 }),
+    (error) => error.name === 'TimeoutError' && !error.message.includes('secret') && !error.message.includes('private.test'),
+  );
+});
+
+test('connection test validates main capability without generating content', async () => {
+  const client = createDirectorClient({ adapter: { capabilities: { generation: true } } });
+  assert.deepEqual(await client.testConnection({ mode: 'main' }), { ok: true, mode: 'main' });
+});

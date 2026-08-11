@@ -1,13 +1,64 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>主动导演 preview</title>
-<link rel="stylesheet" href="/style.css">
-<div id="extensions_settings"></div>
-<script type="module">
-  import { createDirectorConsole } from '/src/ui/director-console.js';
-  const root = document.createElement('div');
-  document.querySelector('#extensions_settings').append(root);
-  const settings = { categories: { daily: { enabled: true, weight: 40 }, crisis: { enabled: true, weight: 35 }, erotic: { enabled: false, weight: 25 } }, genre: { mode: 'auto', custom: '' }, trigger: { mode: 'hybrid', fixedTurns: 4 }, defaults: { consequencePermissions: {} }, connection: { mode: 'main' }, theme: { css: '' } };
-  const state = { status: 'active', activeEvent: { title: '日本旅行计划', premise: '角色主动安排出发与游玩' }, foreshadowing: [{ id: 'f1' }], cast: { mode: 'multi', members: [{ id: 'a' }, { id: 'b' }] }, preference: { userAgency: 80, consequencePermissions: {} }, sceneSafety: { cncEnabled: false, safewords: [], hardLimits: [] } };
-  createDirectorConsole({ root, services: {} }).mount({ settings, state });
-</script>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>主动导演预览</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="extensions_settings"></div>
+  <script type="module">
+    import { createDirectorConsole } from '/src/ui/director-console.js';
+    import { createDirectorState, createGlobalSettings } from '/src/state/default-state.js';
+
+    const root = document.createElement('div');
+    document.querySelector('#extensions_settings').append(root);
+    const settings = createGlobalSettings();
+    const state = createDirectorState('qa-preview', 'qa-character');
+    state.status = 'active';
+    state.activeEvent = { title: '让 char 策划旅行', premise: '角色主动安排出发与游玩' };
+    state.foreshadowing = [{ id: 'f1', title: '未拆封的车票' }];
+    state.cast = {
+      mode: 'multi',
+      locked: false,
+      leadId: 'a',
+      members: [
+        { id: 'a', name: '林澈', aliases: ['阿澈'], evidence: ['角色卡：做事周密'] },
+        { id: 'b', name: '周遥', aliases: [], evidence: ['世界书：熟悉当地交通'] },
+      ],
+    };
+    const services = {
+      saveSettings() {},
+      saveState() {},
+      notice(message) { document.body.dataset.lastNotice = message; },
+      confirm: async () => true,
+      listModels: async () => ['director-small', 'director-large'],
+      testConnection: async () => true,
+      worldInfoEntries: () => [
+        { id: 'city', name: '城市设定' },
+        { id: 'relationships', name: '人物关系' },
+      ],
+      personalityProfile: () => ({ name: '林澈', lines: ['做事周密，倾向提前规划。', '会主动照顾同伴的节奏。'], sources: ['角色卡', '城市设定'] }),
+      onManualEvent() {},
+      lockCast() {},
+      correctCast() {},
+      previewTheme() {},
+      saveTheme() {},
+      disableTheme() {},
+      rollbackTheme() {},
+      resetTheme() {},
+      exportTheme() {},
+      importTheme() {},
+      exportSnapshot() {},
+      importSnapshot() {},
+      undoImport() {},
+      stop() {},
+      isGroupChat: () => false,
+    };
+    const consoleInstance = createDirectorConsole({ root, services });
+    consoleInstance.mount({ settings, state });
+    consoleInstance.open();
+  </script>
+</body>
+</html>

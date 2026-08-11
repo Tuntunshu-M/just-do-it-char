@@ -54,7 +54,10 @@ export async function collectDirectorContext(adapter, state, settings) {
     evidence.push({ source: 'chatBehavior', priority: 4, value: state.historySummary });
   }
 
-  const worldInfoEntries = compactWorldInfo(adapter.getWorldInfoEntries?.() ?? host.worldInfo, options);
+  const rawWorldInfo = adapter.getWorldInfoEntriesAsync
+    ? await adapter.getWorldInfoEntriesAsync()
+    : adapter.getWorldInfoEntries?.() ?? host.worldInfo;
+  const worldInfoEntries = compactWorldInfo(rawWorldInfo, options);
   const personalityProfile = buildPersonalityProfile(card, worldInfoEntries, options);
   return {
     chatKey: state.chatKey,

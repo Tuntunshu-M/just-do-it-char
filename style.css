@@ -114,6 +114,15 @@
 #st-proactive-director textarea { resize: vertical; font-family: ui-monospace, Consolas, monospace; }
 #st-proactive-director .stpd-profile-list { display: grid; gap: 8px; margin: 0; padding-left: 20px; }
 #st-proactive-director .stpd-profile-list li { overflow-wrap: anywhere; }
+#st-proactive-director .stpd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#st-proactive-director .stpd-actions button { min-height: 36px; padding: 7px 11px; border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
+#st-proactive-director .stpd-primary { border-color: var(--stpd-accent) !important; background: color-mix(in srgb, var(--stpd-accent) 18%, transparent); }
+#st-proactive-director .stpd-alert { padding: 8px 10px; color: var(--stpd-warning); border-left: 3px solid var(--stpd-warning); background: rgb(216 166 75 / 10%); }
+#st-proactive-director .stpd-dialog { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--stpd-border); border-left: 3px solid var(--stpd-accent); background: rgb(0 0 0 / 16%); }
+#st-proactive-director .stpd-dialog-content { display: grid; gap: 10px; }
+#st-proactive-director .stpd-summary { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(80px, 1fr); gap: 6px 12px; margin: 0; }
+#st-proactive-director .stpd-summary dt { color: var(--stpd-muted); }
+#st-proactive-director .stpd-summary dd { margin: 0; text-align: right; }
 
 #stpd-menu-entry { cursor: pointer; }
 #stpd-menu-entry::before { margin-right: 6px; }

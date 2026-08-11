@@ -1,43 +1,142 @@
 import { evaluatePolicy as defaultPolicy } from './policy.js';
 import { EXTENSION_PROMPT_KEY } from '../constants.js';
-export function createDirectorPipeline({adapter,store,client,policy,engine,collector,scheduler,onProgress}) {
- let generation=0;
-  async function run(userText,intent={type:'advance'}) {
-  const token=++generation, settings=store.loadGlobal(); if(!settings.enabled) return {skipped:true};
-  const chatKey=adapter.getCurrentChatKey(), state=store.loadChat(chatKey);
-  if(scheduler&&!scheduler.shouldTrigger(state,settings.trigger)) return {skipped:true};
-  state.generation = { phase: 'collecting', startedAt: new Date().toISOString(), finishedAt: null, error: '' }; onProgress?.(state);
-  await store.saveChat?.(state);
-  let context;
-  let result;
-  try {
-    context=await collector(adapter,state,settings); state.generation.phase = 'generating'; await store.saveChat?.(state); onProgress?.(state);
-    result=await client.requestDirector({context,intent},settings.connection,(update) => { state.generation.phase = update.phase; onProgress?.(state); });
-  } catch (error) {
-    state.generation = { ...state.generation, phase: 'failed', finishedAt: new Date().toISOString(), error: error.message };
+
+function generationState(phase, previous = {}, error = '') {
+  const finished = ['idle', 'completed', 'failed'].includes(phase);
+  return {
+    ...previous,
+    phase,
+    startedAt: previous.startedAt ?? new Date().toISOString(),
+    finishedAt: finished ? new Date().toISOString() : null,
+    error,
+  };
+}
+
+export function createDirectorPipeline({ adapter, store, client, policy, personality, engine, collector, scheduler, onProgress }) {
+  const inFlight = new Map();
+  let generation = 0;
+
+  async function persist(state, phase, error = '') {
+    state.generation = generationState(phase, state.generation, error);
     await store.saveChat?.(state);
     onProgress?.(state);
-    throw error;
   }
-  if(token!==generation||adapter.getCurrentChatKey()!==chatKey) {
-    state.generation = { ...state.generation, phase: 'idle', finishedAt: new Date().toISOString() };
-    await store.saveChat?.(state);
-    onProgress?.(state);
-    return {cancelled:true};
+
+  async function requestWithPersonality(context, intent, connection, state) {
+    let result = await client.requestDirector({ context, intent }, connection, (update) => {
+      state.generation.phase = update.phase;
+      onProgress?.(state);
+    });
+    if (!personality?.validate) return result;
+    const validation = personality.validate(result, context);
+    if (validation.allowed) return result;
+    result = await client.requestDirector({
+      context,
+      intent: { ...intent, type: 'repair-personality', reasons: validation.reasons ?? [] },
+    }, connection);
+    const retryValidation = personality.validate(result, context);
+    if (!retryValidation.allowed) throw new Error('导演结果连续两次未通过人格证据校验');
+    return result;
   }
-  await store.saveGlobal?.(settings);
-  const check=(policy.evaluatePolicy??defaultPolicy)({proposal:result.event??{category:'daily'},state,settings,userText});
-  if(!check.allowed) {
-    state.generation = { ...state.generation, phase: 'idle', finishedAt: new Date().toISOString(), error: check.reason ?? '' };
-    await store.saveChat?.(state);
-    onProgress?.(state);
-    return check;
+
+  async function execute(userText, intent, token, chatKey) {
+    const settings = store.loadGlobal();
+    if (!settings.enabled) return { skipped: true };
+    const state = store.loadChat(chatKey);
+    if (intent.type === 'advance') state.counters.turns = (state.counters.turns ?? 0) + 1;
+    const automatic = intent.type === 'advance' || intent.type === 'idle';
+    if (automatic && scheduler && !scheduler.shouldTrigger(state, settings.trigger, intent.environment)) return { skipped: true };
+
+    await persist(state, 'collecting');
+    let context;
+    let result;
+    let injectionCleared = false;
+    try {
+      context = await collector(adapter, state, settings);
+      await persist(state, 'generating');
+      result = await requestWithPersonality(context, intent, settings.connection, state);
+    } catch (error) {
+      await persist(state, 'failed', error.message);
+      throw error;
+    }
+
+    if (token !== generation || adapter.getCurrentChatKey() !== chatKey) {
+      await persist(state, 'idle');
+      return { cancelled: true };
+    }
+
+    await store.saveGlobal?.(settings);
+    const check = (policy?.evaluatePolicy ?? defaultPolicy)({
+      proposal: result.event ?? { category: 'daily' }, state, settings, userText,
+    });
+    if (!check.allowed) {
+      await persist(state, 'idle', check.reasons?.join('; ') ?? '');
+      return check;
+    }
+
+    await engine.stage(chatKey, state.characterFingerprint, {
+      proposal: result.event,
+      foreshadowing: result.foreshadowing,
+      ruleLedgerUpdate: result.ruleLedgerUpdate,
+      lastInjection: result.injection,
+    });
+    try {
+      await persist(state, 'injecting');
+      await adapter.injectPrompt(EXTENSION_PROMPT_KEY, result.injection);
+      await adapter.generateReply();
+      await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');
+      injectionCleared = true;
+      await engine.commit(chatKey, state.characterFingerprint);
+      state.lastInjection = result.injection;
+      if (result.event) {
+        const dayKey = new Date().toISOString().slice(0, 10);
+        if (state.counters.dayKey !== dayKey) state.counters.eventsToday = 0;
+        state.counters.dayKey = dayKey;
+        state.counters.eventsToday = (state.counters.eventsToday ?? 0) + 1;
+        state.cooldowns.lastTurn = state.counters.turns ?? 0;
+      }
+      await persist(state, 'completed');
+      return result;
+    } catch (error) {
+      await engine.rollback(chatKey, state.characterFingerprint);
+      await persist(state, 'failed', error.message);
+      throw error;
+    } finally {
+      if (!injectionCleared) await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');
+    }
   }
-  await engine.stage(chatKey,state.characterFingerprint,{foreshadowing:result.foreshadowing});
-  try { state.generation.phase = 'injecting'; await store.saveChat?.(state); onProgress?.(state); await adapter.injectPrompt(EXTENSION_PROMPT_KEY,result.injection); await adapter.generateReply(); }
-  catch(error){ state.generation = { ...state.generation, phase: 'failed', finishedAt: new Date().toISOString(), error: error.message }; await store.saveChat?.(state); onProgress?.(state); await engine.rollback(chatKey,state.characterFingerprint); throw error; }
-  finally { await adapter.injectPrompt(EXTENSION_PROMPT_KEY,''); }
-  await engine.commit(chatKey,state.characterFingerprint); state.generation = { ...state.generation, phase: 'completed', finishedAt: new Date().toISOString() }; await store.saveChat?.(state); onProgress?.(state); return result;
- }
- return {handleUserMessage:(text)=>run(text),handleIdle:()=>run('',{type:'idle'}),manualCreate:(text,expand=true)=>run(text,{type:'manual',expand}),cancel(){generation+=1;}};
+
+  function run(userText, intent = { type: 'advance' }) {
+    const chatKey = adapter.getCurrentChatKey();
+    if (!chatKey) return Promise.resolve({ skipped: true, reason: 'no-chat' });
+    if (inFlight.has(chatKey)) return inFlight.get(chatKey);
+    const token = ++generation;
+    const request = execute(userText, intent, token, chatKey).finally(() => {
+      if (inFlight.get(chatKey) === request) inFlight.delete(chatKey);
+    });
+    inFlight.set(chatKey, request);
+    return request;
+  }
+
+  async function regenerate({ rejudge = false } = {}) {
+    const chatKey = adapter.getCurrentChatKey();
+    const state = store.loadChat(chatKey);
+    if (rejudge) return run('', { type: 'rejudge' });
+    if (!state.lastInjection) return { skipped: true, reason: 'no-prior-instruction' };
+    try {
+      await adapter.injectPrompt(EXTENSION_PROMPT_KEY, state.lastInjection);
+      await adapter.generateReply();
+      return { reused: true };
+    } finally {
+      await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');
+    }
+  }
+
+  return {
+    handleUserMessage: (text) => run(text),
+    handleIdle: (environment = {}) => run('', { type: 'idle', environment }),
+    manualCreate: (text, expand = true) => run(text, { type: 'manual', expand }),
+    regenerate,
+    cancel() { generation += 1; },
+  };
 }

@@ -88,3 +88,12 @@ test('adapter uses SillyTavern 1.18 raw generation, normal generation, and Popup
     ['confirm', 'notice'],
   ]);
 });
+
+test('adapter can asynchronously load selected external world-book entries', async () => {
+  const adapter = createSillyTavernAdapter(() => ({
+    selected_world_info: 'lore',
+    world_names: ['lore'],
+    loadWorldInfo: async () => ({ entries: [{ uid: 7, comment: '规则', content: '不可回头' }] }),
+  }));
+  assert.deepEqual(await adapter.getWorldInfoEntriesAsync(), [{ id: '7', name: '规则', content: '不可回头' }]);
+});

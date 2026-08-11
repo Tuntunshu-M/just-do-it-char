@@ -32,6 +32,7 @@ export function createGlobalSettings() {
       dailyLimit: 8,
       idleEnabled: false,
       idleMinutes: 30,
+      allowedWindows: [],
     },
     connection: {
       mode: 'main',

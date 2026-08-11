@@ -51,6 +51,18 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
       if (connection.stream) return readStream(response.body, connection.onUpdate);
       const payload = await response.json();
       return payload?.choices?.[0]?.message?.content;
+    } catch (error) {
+      if (controller.signal.aborted || error?.name === 'AbortError') {
+        const timeoutError = new Error('导演 API 请求超时，请检查连接或增加超时时间。');
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
+      let message = String(error?.message ?? '导演 API 请求失败');
+      if (connection.apiKey) message = message.replaceAll(String(connection.apiKey), '[REDACTED]');
+      if (connection.endpoint) message = message.replaceAll(String(connection.endpoint), '[ENDPOINT]');
+      const safeError = new Error(message);
+      safeError.name = error?.name ?? 'Error';
+      throw safeError;
     } finally {
       clearTimeout(timeout);
     }
@@ -114,5 +126,17 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
     return parseDirectorResult(content);
   }
 
-  return { requestDirector, listModels };
+  async function testConnection(connection) {
+    if (connection.mode === 'independent') {
+      const models = await listModels(connection);
+      return { ok: true, mode: 'independent', models };
+    }
+    if (connection.mode === 'main') {
+      if (!adapter.capabilities?.generation) throw new Error('当前主连接不支持导演原始生成。');
+      return { ok: true, mode: 'main' };
+    }
+    throw new Error(`Unknown director connection mode: ${connection.mode}`);
+  }
+
+  return { requestDirector, listModels, testConnection };
 }

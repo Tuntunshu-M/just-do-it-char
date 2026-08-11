@@ -23,6 +23,12 @@ export function validateDirectorResult(value) {
   for (const field of ['branches', 'risks', 'foreshadowing']) {
     requireType(Array.isArray(value[field]), `${field} must be an array`);
   }
+  if (value.leadChange != null) {
+    requireType(typeof value.leadChange.nextLeadId === 'string' && value.leadChange.nextLeadId, 'lead change nextLeadId is required');
+    requireType(typeof value.leadChange.motivation === 'string' && value.leadChange.motivation, 'lead change motivation is required');
+    requireType(typeof value.leadChange.location === 'string' && value.leadChange.location, 'lead change location is required');
+    requireType(typeof value.leadChange.knowledgeState === 'string' && value.leadChange.knowledgeState, 'lead change knowledge state is required');
+  }
   requireType(value.ruleLedgerUpdate && typeof value.ruleLedgerUpdate === 'object', 'ruleLedgerUpdate is required');
   requireType(typeof value.injection === 'string' && value.injection.trim(), 'compact injection is required');
   return value;
