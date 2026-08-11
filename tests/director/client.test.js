@@ -19,7 +19,7 @@ test('independent client sends OpenAI compatible request', async () => {
 test('main connection reminder is suppressed for 24 hours', async () => {
   let confirms = 0;
   let now = 1000;
-  const adapter = { showConfirm: async (text) => { confirms += 1; assert.equal(text, MAIN_API_REMINDER); return true; }, generateReply: async () => JSON.stringify(result) };
+  const adapter = { showConfirm: async (text) => { confirms += 1; assert.equal(text, MAIN_API_REMINDER); return true; }, generateDirector: async () => JSON.stringify(result) };
   const client = createDirectorClient({ adapter, clock: () => now });
   const connection = { mode: 'main', mainReminderUntil: 0 };
   await client.requestDirector({ context: {}, intent: {} }, connection);

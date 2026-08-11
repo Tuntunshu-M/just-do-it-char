@@ -16,10 +16,10 @@ export function createSillyTavernAdapter(contextProvider) {
         character: Array.isArray(host.characters) && host.characterId !== undefined,
         messages: Array.isArray(host.chat),
         promptInjection: hasFunction(host.setExtensionPrompt),
-        generation: hasFunction(host.generate),
+        generation: hasFunction(host.generate) && hasFunction(host.generateRaw),
         settings: hasFunction(host.saveSettingsDebounced),
         chatState: hasFunction(host.saveMetadata),
-        confirmation: hasFunction(host.popup?.confirm),
+        confirmation: hasFunction(host.Popup?.show?.confirm) || hasFunction(host.popup?.confirm),
         events: hasFunction(host.eventSource?.on),
       };
     },
@@ -46,10 +46,18 @@ export function createSillyTavernAdapter(contextProvider) {
       return getHost(contextProvider).setExtensionPrompt?.(...args);
     },
 
-    generateReply(...args) {
+    generateDirector(messages) {
+      const generateRaw = getHost(contextProvider).generateRaw;
+      if (!hasFunction(generateRaw)) throw new Error('SillyTavern raw generation capability is unavailable');
+      const systemPrompt = messages.filter((message) => message.role === 'system').map((message) => message.content).join('\n\n');
+      const prompt = messages.filter((message) => message.role !== 'system').map((message) => message.content).join('\n\n');
+      return generateRaw({ prompt, systemPrompt });
+    },
+
+    generateReply() {
       const generate = getHost(contextProvider).generate;
       if (!hasFunction(generate)) throw new Error('SillyTavern generation capability is unavailable');
-      return generate(...args);
+      return generate('normal');
     },
 
     saveSettings() {
@@ -61,7 +69,8 @@ export function createSillyTavernAdapter(contextProvider) {
     },
 
     showConfirm(message) {
-      const confirm = getHost(contextProvider).popup?.confirm;
+      const host = getHost(contextProvider);
+      const confirm = host.Popup?.show?.confirm ?? host.popup?.confirm;
       if (!hasFunction(confirm)) return Promise.resolve(false);
       return confirm(message);
     },

@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>主动导演 preview</title>
+<link rel="stylesheet" href="/style.css">
+<div id="extensions_settings"></div>
+<script type="module">
+  import { createDirectorConsole } from '/src/ui/director-console.js';
+  const root = document.createElement('div');
+  document.querySelector('#extensions_settings').append(root);
+  const settings = { categories: { daily: { enabled: true, weight: 40 }, crisis: { enabled: true, weight: 35 }, erotic: { enabled: false, weight: 25 } }, genre: { mode: 'auto', custom: '' }, trigger: { mode: 'hybrid', fixedTurns: 4 }, defaults: { consequencePermissions: {} }, connection: { mode: 'main' }, theme: { css: '' } };
+  const state = { status: 'active', activeEvent: { title: '日本旅行计划', premise: '角色主动安排出发与游玩' }, foreshadowing: [{ id: 'f1' }], cast: { mode: 'multi', members: [{ id: 'a' }, { id: 'b' }] }, preference: { userAgency: 80, consequencePermissions: {} }, sceneSafety: { cncEnabled: false, safewords: [], hardLimits: [] } };
+  createDirectorConsole({ root, services: {} }).mount({ settings, state });
+</script>

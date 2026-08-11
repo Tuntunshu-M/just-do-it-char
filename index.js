@@ -1,6 +1,15 @@
 import { createSillyTavernAdapter } from './src/host/sillytavern-adapter.js';
 import { createStore } from './src/state/store.js';
 import { createDirectorConsole } from './src/ui/director-console.js';
+import { createDirectorClient } from './src/director/client.js';
+import { collectDirectorContext } from './src/director/context-collector.js';
+import { createEventEngine } from './src/director/event-engine.js';
+import { createDirectorPipeline } from './src/director/pipeline.js';
+import { evaluatePolicy } from './src/director/policy.js';
+import { createScheduler } from './src/director/scheduler.js';
+import { createThemeManager } from './src/theme/theme-manager.js';
+import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
+import { createDirectorState } from './src/state/default-state.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -8,6 +17,7 @@ function resolveContext() {
 
 export const hostAdapter = createSillyTavernAdapter(resolveContext);
 let consoleInstance;
+let runtime;
 
 export function initializeExtension() {
   const capabilities = hostAdapter.capabilities;
@@ -18,19 +28,97 @@ export function initializeExtension() {
   const store = createStore(hostAdapter);
   const settings = store.loadGlobal();
   const chatKey = hostAdapter.getCurrentChatKey();
-  const state = chatKey ? store.loadChat(chatKey) : {
-    status: 'idle', activeEvent: null, foreshadowing: [], cast: { mode: 'single', members: [] },
-    preference: { userAgency: settings.defaults.userAgency },
+  const state = chatKey ? store.loadChat(chatKey) : createDirectorState(null);
+  state.preference.userAgency = settings.defaults.userAgency;
+  const engine = createEventEngine(store);
+  const theme = createThemeManager(document, { save: async (value) => {
+    settings.theme = value;
+    await store.saveGlobal(settings);
+  } });
+  theme.preview(settings.theme);
+  const pipeline = createDirectorPipeline({
+    adapter: hostAdapter,
+    store,
+    client: createDirectorClient({ adapter: hostAdapter }),
+    policy: { evaluatePolicy },
+    engine,
+    collector: collectDirectorContext,
+    scheduler: createScheduler(),
+  });
+  const rerender = () => consoleInstance?.render({ settings, state });
+  const notice = (message) => hostAdapter.showSystemMessage?.(message);
+  const downloadSnapshot = (options) => {
+    const snapshot = exportSnapshot(state, options);
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `proactive-director-${chatKey ?? 'snapshot'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const importSnapshotFile = async (file, options) => {
+    try {
+      const snapshot = JSON.parse(await file.text());
+      const preview = previewImport(snapshot, state, options);
+      const accepted = await hostAdapter.showConfirm?.(`将导入所选副本内容。${preview.warnings?.join(' ') ?? ''}`);
+      if (!accepted) return;
+      const imported = applyImport(preview);
+      Object.assign(state, imported);
+      await store.saveChat(state);
+      rerender();
+    } catch (error) {
+      console.error('[主动导演] snapshot import failed', error);
+      notice?.('副本导入失败，请检查 JSON 文件。');
+    }
   };
   consoleInstance = createDirectorConsole({
     root,
     services: {
       saveSettings: (next) => store.saveGlobal(next),
-      stop: () => { state.status = 'stopped'; state.activeEvent = null; consoleInstance.render({ settings, state }); },
+      saveState: (next) => store.saveChat(next),
+      previewTheme: (value) => theme.preview(value),
+      confirm: (message) => hostAdapter.showConfirm(message),
+      notice,
+      exportSnapshot: downloadSnapshot,
+      importSnapshot: importSnapshotFile,
+      undoImport: async () => {
+        const previous = undoLastImport();
+        if (!previous) return;
+        Object.assign(state, previous);
+        await store.saveChat(state);
+        rerender();
+      },
+      stop: async () => {
+        if (chatKey) await engine.stop(chatKey, state.characterFingerprint);
+        state.status = 'stopped'; state.activeEvent = null; rerender();
+      },
+      onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
     },
   });
   consoleInstance.mount({ settings, state });
+  const host = hostAdapter.getContext();
+  const eventTypes = host.event_types ?? globalThis.event_types ?? {};
+  const unsubscribers = [];
+  if (!host.groupId && !host.group_id && chatKey) {
+    const userEvent = eventTypes.USER_MESSAGE_RENDERED ?? 'USER_MESSAGE_RENDERED';
+    unsubscribers.push(hostAdapter.on(userEvent, (messageIndex) => {
+      const message = hostAdapter.getMessages()[messageIndex] ?? hostAdapter.getMessages().at(-1);
+      pipeline.handleUserMessage(message?.mes ?? '').catch((error) => console.error('[主动导演]', error));
+    }));
+  } else if (host.groupId || host.group_id) {
+    state.status = 'paused';
+    rerender();
+  }
+  const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
+  unsubscribers.push(hostAdapter.on(chatEvent, () => pipeline.cancel()));
+  runtime = { pipeline, theme, destroy() { pipeline.cancel(); unsubscribers.forEach((off) => off()); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
   return capabilities;
+}
+
+export function destroyExtension() {
+  runtime?.destroy();
+  runtime = null;
 }
 
 if (typeof document !== 'undefined') {

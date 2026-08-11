@@ -8,12 +8,13 @@ export function createDirectorPipeline({adapter,store,client,policy,engine,colle
   if(scheduler&&!scheduler.shouldTrigger(state,settings.trigger)) return {skipped:true};
   const context=await collector(adapter,state,settings); const result=await client.requestDirector({context,intent},settings.connection);
   if(token!==generation||adapter.getCurrentChatKey()!==chatKey) return {cancelled:true};
+  await store.saveGlobal?.(settings);
   const check=(policy.evaluatePolicy??defaultPolicy)({proposal:result.event??{category:'daily'},state,settings,userText});
   if(!check.allowed) return check;
   await engine.stage(chatKey,state.characterFingerprint,{foreshadowing:result.foreshadowing});
-  try { await adapter.injectPrompt(result.injection,EXTENSION_PROMPT_KEY); await adapter.generateReply(); }
+  try { await adapter.injectPrompt(EXTENSION_PROMPT_KEY,result.injection); await adapter.generateReply(); }
   catch(error){ await engine.rollback(chatKey,state.characterFingerprint); throw error; }
-  finally { await adapter.injectPrompt('',EXTENSION_PROMPT_KEY); }
+  finally { await adapter.injectPrompt(EXTENSION_PROMPT_KEY,''); }
   await engine.commit(chatKey,state.characterFingerprint); return result;
  }
  return {handleUserMessage:(text)=>run(text),handleIdle:()=>run('',{type:'idle'}),manualCreate:(text,expand=true)=>run(text,{type:'manual',expand}),cancel(){generation+=1;}};

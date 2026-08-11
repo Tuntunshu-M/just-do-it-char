@@ -70,3 +70,21 @@ test('adapter delegates every supported operation to the host context', async ()
     'off',
   ]);
 });
+
+test('adapter uses SillyTavern 1.18 raw generation, normal generation, and Popup APIs', async () => {
+  const calls = [];
+  const context = {
+    generateRaw: async (options) => { calls.push(['raw', options]); return 'director'; },
+    generate: async (...args) => calls.push(['normal', ...args]),
+    Popup: { show: { confirm: async (message) => { calls.push(['confirm', message]); return true; } } },
+  };
+  const adapter = createSillyTavernAdapter(() => context);
+  assert.equal(await adapter.generateDirector([{ role: 'system', content: 'plan' }]), 'director');
+  await adapter.generateReply();
+  assert.equal(await adapter.showConfirm('notice'), true);
+  assert.deepEqual(calls, [
+    ['raw', { prompt: '', systemPrompt: 'plan' }],
+    ['normal', 'normal'],
+    ['confirm', 'notice'],
+  ]);
+});
