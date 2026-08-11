@@ -19,12 +19,32 @@ export const hostAdapter = createSillyTavernAdapter(resolveContext);
 let consoleInstance;
 let runtime;
 
+function mountWandEntry(openConsole) {
+  const menu = document.querySelector('#extensionsMenu');
+  if (!menu) return () => {};
+  const existing = document.querySelector('#stpd-menu-entry');
+  if (existing) existing.onclick = openConsole;
+  else {
+    const entry = document.createElement('div');
+    entry.id = 'stpd-menu-entry';
+    entry.className = 'extensionsMenuExtensionButton stpd-menu-entry fa-solid fa-wand-magic-sparkles';
+    entry.title = '打开主动导演';
+    entry.setAttribute('aria-label', '打开主动导演');
+    entry.setAttribute('role', 'button');
+    entry.tabIndex = 0;
+    entry.onclick = openConsole;
+    entry.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openConsole(); } };
+    const target = menu.querySelector('.extension_container') ?? menu;
+    target.append(entry);
+  }
+  return () => document.querySelector('#stpd-menu-entry')?.remove();
+}
+
 export function initializeExtension() {
   const capabilities = hostAdapter.capabilities;
-  const mountPoint = document.querySelector('#extensions_settings, #extensions-settings');
-  if (!mountPoint || consoleInstance) return capabilities;
+  if (consoleInstance || typeof document === 'undefined') return capabilities;
   const root = document.createElement('div');
-  mountPoint.append(root);
+  document.body.append(root);
   const store = createStore(hostAdapter);
   const settings = store.loadGlobal();
   const chatKey = hostAdapter.getCurrentChatKey();
@@ -97,6 +117,10 @@ export function initializeExtension() {
     },
   });
   consoleInstance.mount({ settings, state });
+  const menuCleanup = mountWandEntry(() => consoleInstance?.open());
+  const menuObserver = new MutationObserver(() => mountWandEntry(() => consoleInstance?.open()));
+  const menuParent = document.body;
+  menuObserver.observe(menuParent, { childList: true, subtree: true });
   const host = hostAdapter.getContext();
   const eventTypes = host.event_types ?? globalThis.event_types ?? {};
   const unsubscribers = [];
@@ -112,7 +136,7 @@ export function initializeExtension() {
   }
   const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
   unsubscribers.push(hostAdapter.on(chatEvent, () => pipeline.cancel()));
-  runtime = { pipeline, theme, destroy() { pipeline.cancel(); unsubscribers.forEach((off) => off()); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
+  runtime = { pipeline, theme, destroy() { pipeline.cancel(); unsubscribers.forEach((off) => off()); menuObserver.disconnect(); menuCleanup(); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
   return capabilities;
 }
 

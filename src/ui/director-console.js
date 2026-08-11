@@ -23,6 +23,8 @@ export function createDirectorConsole({ root, services }) {
   let active = 'event';
   let settings;
   let state;
+  let open = false;
+  let escapeHandler;
   let snapshotOptions = { eventFramework: true, history: false, personality: false, rules: false, safety: false };
   const saveSettings = () => services.saveSettings?.(settings);
   const saveState = () => services.saveState?.(state);
@@ -47,9 +49,9 @@ export function createDirectorConsole({ root, services }) {
   function renderEvent(body, doc) {
     body.append(
       el(doc, 'h3', {}, state.activeEvent?.title ?? '暂无活动事件'),
-      el(doc, 'p', { class: 'stpd-muted' }, state.activeEvent?.premise ?? '导演将在合适时机创建事件'),
+      el(doc, 'p', { class: 'stpd-muted' }, state.activeEvent?.premise ?? '导演将在合适时机创建事件。'),
     );
-    const idea = el(doc, 'textarea', { 'aria-label': '事件想法', rows: '3', placeholder: '输入事件想法，例如：一起策划日本旅行' });
+    const idea = el(doc, 'textarea', { 'aria-label': '事件想法', rows: '3', placeholder: '输入事件想法，例如：让 char 策划旅行' });
     const expand = el(doc, 'input', { type: 'checkbox', checked: true });
     const create = el(doc, 'button', { type: 'button' }, '创建事件');
     create.onclick = () => { const value = idea.value.trim(); if (value) services.onManualEvent?.(value, expand.checked); };
@@ -79,7 +81,7 @@ export function createDirectorConsole({ root, services }) {
     }
     body.append(selectField('触发方式', settings.trigger.mode, [
       ['hybrid', '智能混合'], ['fixed', '固定回合'], ['every', '每回合'],
-    ], (value) => { settings.trigger.mode = value; saveSettings(); }));
+    ], (value) => { settings.trigger.mode = value; saveSettings(); render(); }));
     const turns = el(doc, 'input', { type: 'number', min: '1', max: '100', value: String(settings.trigger.fixedTurns ?? 4) });
     turns.onchange = () => { settings.trigger.fixedTurns = Number(turns.value) || 4; saveSettings(); };
     body.append(field('固定回合数', turns));
@@ -92,28 +94,29 @@ export function createDirectorConsole({ root, services }) {
       }));
     }
 
-    const cnc = el(doc, 'input', { type: 'checkbox', checked: state.sceneSafety.cncEnabled });
-    cnc.onchange = async () => {
-      if (!cnc.checked) { state.sceneSafety.cncEnabled = false; saveState(); return; }
-      if (!state.sceneSafety.safewords.length) { cnc.checked = false; services.notice?.('请先填写至少一个安全词'); return; }
-      const accepted = await services.confirm?.('启用高风险模式后，导演只会在当前聊天授权范围内解释角色内口头反抗；安全词和硬禁区始终有效。');
-      if (accepted) { state.sceneSafety.cncEnabled = true; saveState(); } else cnc.checked = false;
-    };
-    body.append(field('高风险模式', cnc));
     const safewords = el(doc, 'textarea', { rows: '2', placeholder: '安全词，用逗号或换行分隔' });
     safewords.value = state.sceneSafety.safewords.join(', ');
-    safewords.onchange = () => { state.sceneSafety.safewords = lines(safewords.value); if (!state.sceneSafety.safewords.length) state.sceneSafety.cncEnabled = false; saveState(); };
+    safewords.onchange = () => { state.sceneSafety.safewords = lines(safewords.value); if (!state.sceneSafety.safewords.length) state.sceneSafety.cncEnabled = false; saveState(); render(); };
     const hardLimits = el(doc, 'textarea', { rows: '2', placeholder: '硬禁区，用逗号或换行分隔' });
     hardLimits.value = state.sceneSafety.hardLimits.join(', ');
     hardLimits.onchange = () => { state.sceneSafety.hardLimits = lines(hardLimits.value); saveState(); };
     body.append(field('安全词', safewords), field('硬禁区', hardLimits));
+
+    const cnc = el(doc, 'input', { type: 'checkbox', checked: state.sceneSafety.cncEnabled });
+    cnc.onchange = async () => {
+      if (!cnc.checked) { state.sceneSafety.cncEnabled = false; saveState(); return; }
+      if (!state.sceneSafety.safewords.length) { cnc.checked = false; services.notice?.('请先填写安全词。'); return; }
+      const accepted = await services.confirm?.('启用高风险模式后，导演只会在当前聊天授权范围内解释角色内口头反抗；安全词和硬禁区始终有效。');
+      if (accepted) { state.sceneSafety.cncEnabled = true; saveState(); } else cnc.checked = false;
+    };
+    body.append(field('高风险模式（色情向）', cnc));
   }
 
   function renderConnection(body, doc) {
     body.append(selectField('导演 API 连接', settings.connection.mode, [['main', '当前主连接'], ['independent', '独立兼容 API']], (value) => {
       settings.connection.mode = value; saveSettings(); render();
     }));
-    if (settings.connection.mode === 'main') { body.append(el(doc, 'p', { class: 'stpd-muted' }, '正在在用主api哦！')); return; }
+    if (settings.connection.mode === 'main') { body.append(el(doc, 'p', { class: 'stpd-muted' }, '正在使用主 API。')); return; }
     for (const [key, label, type, placeholder] of [['endpoint', '接口地址', 'url', 'https://api.example.com/v1'], ['apiKey', 'API Key', 'password', 'sk-...'], ['model', '模型', 'text', '模型名称']]) {
       const input = el(doc, 'input', { type, value: settings.connection[key] ?? '', placeholder });
       input.onchange = () => { settings.connection[key] = input.value.trim(); saveSettings(); };
@@ -156,20 +159,56 @@ export function createDirectorConsole({ root, services }) {
 
   function render() {
     root.replaceChildren();
+    root.id = 'st-proactive-director';
+    root.className = `stpd-console${open ? ' stpd-modal-open' : ''}`;
     const doc = root.ownerDocument;
-    root.id = 'st-proactive-director'; root.className = 'stpd-console';
+    const overlay = el(doc, 'div', { class: 'stpd-overlay', role: 'presentation' });
+    const modal = el(doc, 'section', { class: 'stpd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '主动导演' });
     const header = el(doc, 'header', { class: 'stpd-header stpd-row' });
     header.append(el(doc, 'strong', { class: 'stpd-title' }, '主动导演'), el(doc, 'span', { class: `stpd-status stpd-status-${state.status}` }, state.status === 'active' ? '运行中' : '待机'));
     const stop = el(doc, 'button', { type: 'button', class: 'stpd-stop', 'aria-label': '立即停止导演', title: '立即停止' }, '■');
-    stop.onclick = () => services.stop?.(); header.append(stop); root.append(header);
+    stop.onclick = () => services.stop?.();
+    const closeButton = el(doc, 'button', { type: 'button', class: 'stpd-close', 'aria-label': '关闭主动导演', title: '关闭' }, '×');
+    closeButton.onclick = close;
+    header.append(stop, closeButton);
     const nav = el(doc, 'nav', { class: 'stpd-tabs', 'aria-label': '导演控制台' });
-    for (const [id, label] of TABS) { const button = el(doc, 'button', { type: 'button', role: 'tab', 'aria-selected': String(active === id) }, label); button.onclick = () => { active = id; render(); }; nav.append(button); }
-    root.append(nav); const body = el(doc, 'section', { class: 'stpd-view', role: 'tabpanel' }); renderView(body); root.append(body);
+    for (const [id, label] of TABS) {
+      const button = el(doc, 'button', { type: 'button', role: 'tab', 'aria-selected': String(active === id) }, label);
+      button.onclick = () => { active = id; render(); };
+      nav.append(button);
+    }
+    const body = el(doc, 'section', { class: 'stpd-modal-body stpd-view', role: 'tabpanel' });
+    renderView(body);
+    modal.append(header, nav, body);
+    overlay.append(modal);
+    root.append(overlay);
+  }
+
+  function openModal() {
+    open = true;
+    render();
+    root.querySelector('.stpd-close')?.focus();
+  }
+
+  function close() {
+    open = false;
+    render();
   }
 
   return {
-    mount(data) { settings = data.settings; state = data.state; render(); },
+    mount(data) {
+      settings = data.settings;
+      state = data.state;
+      escapeHandler = (event) => { if (event.key === 'Escape' && open) close(); };
+      root.ownerDocument.addEventListener('keydown', escapeHandler);
+      render();
+    },
+    open: openModal,
+    close,
     render(data) { settings = data?.settings ?? settings; state = data?.state ?? state; render(); },
-    destroy() { root.replaceChildren(); },
+    destroy() {
+      if (escapeHandler) root.ownerDocument.removeEventListener('keydown', escapeHandler);
+      root.replaceChildren();
+    },
   };
 }

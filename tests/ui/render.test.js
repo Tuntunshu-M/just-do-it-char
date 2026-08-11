@@ -1,6 +1,43 @@
-import assert from'node:assert/strict';import test from'node:test';
-test('console module exports lifecycle contract',async()=>{const m=await import('../../src/ui/director-console.js');assert.equal(typeof m.createDirectorConsole,'function');const source=await (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js',import.meta.url),'utf8');for(const tab of ['事件','伏笔','人物','偏好','连接','外观'])assert.match(source,new RegExp(tab));assert.match(source,/aria-selected/);});
-test('console supports prompted manual events and persists editable settings',async()=>{const source=await (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js',import.meta.url),'utf8');assert.match(source,/事件想法/);assert.match(source,/让 AI 扩展/);assert.match(source,/onManualEvent\?\.\(.*value/);assert.match(source,/select\.onchange/);assert.match(source,/agency\.onchange/);assert.match(source,/weight\.onchange/);});
-test('console exposes independent API connection fields',async()=>{const source=await (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js',import.meta.url),'utf8');for(const label of ['接口地址','API Key','模型','password'])assert.match(source,new RegExp(label));assert.match(source,/connection\[key\]/);});
-test('console exposes genre, triggers, crisis permissions, and scene safety',async()=>{const source=await (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js',import.meta.url),'utf8');for(const label of ['题材','无限流','鬼怪灵异','触发方式','重大后果','高风险模式','安全词','硬禁区'])assert.match(source,new RegExp(label));assert.match(source,/cncEnabled/);assert.match(source,/consequencePermissions/);});
-test('console exposes selective snapshot migration',async()=>{const source=await (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js',import.meta.url),'utf8');for(const label of ['事件框架','角色专属历史','原人格推断','规则账本','安全词与硬禁区','导出副本','导入副本','撤销导入'])assert.match(source,new RegExp(label));assert.match(source,/exportSnapshot/);assert.match(source,/importSnapshot/);});
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+async function source() {
+  return (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js', import.meta.url), 'utf8');
+}
+
+test('console module exports lifecycle contract', async () => {
+  const module = await import('../../src/ui/director-console.js');
+  assert.equal(typeof module.createDirectorConsole, 'function');
+  const text = await source();
+  for (const tab of ['事件', '伏笔', '人物', '偏好', '连接', '外观', '副本']) assert.match(text, new RegExp(tab));
+  for (const contract of ['aria-selected', 'stpd-overlay', 'stpd-modal', 'stpd-modal-body', 'openModal', 'Escape']) assert.match(text, new RegExp(contract));
+  assert.doesNotMatch(text, /event\.target === overlay/);
+});
+
+test('console supports prompted manual events and persists editable settings', async () => {
+  const text = await source();
+  for (const label of ['事件想法', '让 AI 扩展', '让 char 策划旅行', 'select.onchange', 'agency.onchange', 'weight.onchange']) assert.match(text, new RegExp(label));
+  assert.match(text, /onManualEvent\?\.\(value/);
+});
+
+test('console exposes independent API connection fields', async () => {
+  const text = await source();
+  for (const label of ['接口地址', 'API Key', '模型', 'password']) assert.match(text, new RegExp(label));
+  assert.match(text, /connection\[key\]/);
+});
+
+test('console gates the explicit erotic high-risk mode with a safeword', async () => {
+  const text = await source();
+  for (const label of ['题材', '无限流', '鬼怪灵异', '触发方式', '重大后果', '高风险模式（色情向）', '安全词', '硬禁区']) assert.match(text, new RegExp(label));
+  assert.match(text, /请先填写安全词。/);
+  assert.match(text, /services\.confirm/);
+  assert.match(text, /cncEnabled/);
+  assert.match(text, /safewords/);
+});
+
+test('console exposes selective snapshot migration', async () => {
+  const text = await source();
+  for (const label of ['事件框架', '角色专属历史', '原人格推断', '规则账本', '安全词与硬禁区', '导出副本', '导入副本', '撤销导入']) assert.match(text, new RegExp(label));
+  assert.match(text, /exportSnapshot/);
+  assert.match(text, /importSnapshot/);
+});
