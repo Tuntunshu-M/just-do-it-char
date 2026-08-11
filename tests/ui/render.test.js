@@ -1,0 +1,2 @@
+import assert from'node:assert/strict';import test from'node:test';
+test('console module exports lifecycle contract',async()=>{const m=await import('../../src/ui/director-console.js');assert.equal(typeof m.createDirectorConsole,'function');const source=await (await import('node:fs/promises')).readFile(new URL('../../src/ui/director-console.js',import.meta.url),'utf8');for(const tab of ['事件','伏笔','人物','偏好','连接','外观'])assert.match(source,new RegExp(tab));assert.match(source,/aria-selected/);});

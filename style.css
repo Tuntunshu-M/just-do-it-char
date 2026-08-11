@@ -29,7 +29,28 @@
 #st-proactive-director .stpd-stack { display: grid; gap: var(--stpd-gap); min-width: 0; }
 #st-proactive-director .stpd-panel { padding: 12px; border: 1px solid var(--stpd-border); background: var(--stpd-panel); border-radius: var(--stpd-radius); }
 #st-proactive-director .stpd-icon-button { inline-size: 34px; block-size: 34px; display: inline-grid; place-items: center; border-radius: var(--stpd-radius); }
+#st-proactive-director.stpd-console { border: 1px solid var(--stpd-border); border-radius: var(--stpd-radius); overflow: hidden; }
+#st-proactive-director .stpd-header { min-height: 46px; padding: 8px 10px; border-bottom: 1px solid var(--stpd-border); }
+#st-proactive-director .stpd-title { font-size: 15px; margin-right: auto; }
+#st-proactive-director .stpd-status { display: inline-flex; align-items: center; gap: 6px; color: var(--stpd-muted); }
+#st-proactive-director .stpd-status::before { content: ""; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--stpd-muted); }
+#st-proactive-director .stpd-status-active::before { background: var(--stpd-success); }
+#st-proactive-director .stpd-stop { inline-size: 34px; block-size: 34px; color: var(--stpd-danger); border: 1px solid var(--stpd-border); background: transparent; border-radius: var(--stpd-radius); }
+#st-proactive-director .stpd-tabs { display: grid; grid-template-columns: repeat(6, minmax(48px, 1fr)); overflow-x: auto; border-bottom: 1px solid var(--stpd-border); }
+#st-proactive-director .stpd-tabs button { min-height: 38px; padding: 6px 8px; color: var(--stpd-muted); border: 0; border-bottom: 2px solid transparent; background: transparent; white-space: nowrap; }
+#st-proactive-director .stpd-tabs button[aria-selected="true"] { color: var(--stpd-text); border-bottom-color: var(--stpd-accent); }
+#st-proactive-director .stpd-view { min-height: 180px; padding: 12px; display: grid; align-content: start; gap: 10px; }
+#st-proactive-director .stpd-view h3 { margin: 0; font-size: 15px; letter-spacing: 0; }
+#st-proactive-director .stpd-view p { margin: 0; overflow-wrap: anywhere; }
+#st-proactive-director .stpd-field { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(120px, 1.5fr); align-items: center; gap: 10px; min-width: 0; }
+#st-proactive-director .stpd-field input,
+#st-proactive-director .stpd-field select,
+#st-proactive-director .stpd-field textarea { min-width: 0; width: 100%; }
+#st-proactive-director .stpd-field input[type="checkbox"] { width: auto; justify-self: end; }
+#st-proactive-director textarea { resize: vertical; font-family: ui-monospace, Consolas, monospace; }
 
 @media (max-width: 520px) {
   #st-proactive-director .stpd-row.stpd-responsive { align-items: stretch; flex-direction: column; }
+  #st-proactive-director .stpd-tabs { grid-template-columns: repeat(6, minmax(58px, 1fr)); }
+  #st-proactive-director .stpd-field { grid-template-columns: 1fr; gap: 5px; }
 }
