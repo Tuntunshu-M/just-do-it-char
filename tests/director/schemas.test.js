@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { validateDirectorResult } from '../../src/director/schemas.js';
+
+const valid = {
+  event: { title: 'Trip', category: 'daily', premise: 'Japan', steps: [{ id: 's1', goal: 'depart' }] },
+  feedback: { classification: 'accept', confidence: 0.8 },
+  actions: [{ characterId: 'a', action: 'buys tickets', evidence: ['card: decisive'] }],
+  branches: [], risks: [], foreshadowing: [], ruleLedgerUpdate: {},
+  injection: 'A has already bought tickets and now leads the departure.',
+};
+
+test('director schema accepts a complete structured result', () => {
+  assert.deepEqual(validateDirectorResult(valid), valid);
+});
+
+test('director schema rejects unknown feedback and unsupported key actions', () => {
+  assert.throws(() => validateDirectorResult({ ...valid, feedback: { classification: 'maybe' } }), /feedback/i);
+  assert.throws(() => validateDirectorResult({ ...valid, actions: [{ characterId: 'a', action: 'go', evidence: [] }] }), /evidence/i);
+});
