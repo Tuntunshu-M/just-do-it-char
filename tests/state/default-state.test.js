@@ -14,6 +14,10 @@ test('global settings keep connection secrets outside chat state', () => {
   assert.equal(settings.schemaVersion, SCHEMA_VERSION);
   assert.equal(settings.connection.mode, 'main');
   assert.equal(settings.connection.apiKey, '');
+  assert.equal(settings.connection.temperature, 0.7);
+  assert.equal(settings.connection.maxTokens, 2000);
+  assert.equal(settings.connection.stream, false);
+  assert.equal(settings.context.worldInfoMode, 'all');
   assert.deepEqual(settings.categories, {
     daily: { enabled: true, weight: 40 },
     crisis: { enabled: true, weight: 35 },
@@ -35,7 +39,7 @@ test('director state has isolated serializable event data', () => {
   assert.deepEqual(Object.keys(first).sort(), [
     'activeEvent', 'cast', 'characterFingerprint', 'chatKey', 'cooldowns',
     'counters', 'foreshadowing', 'historySummary', 'pendingTransaction',
-    'preference', 'ruleLedger', 'sceneSafety', 'schemaVersion', 'status',
+    'preference', 'ruleLedger', 'sceneSafety', 'schemaVersion', 'status', 'directorNotes', 'generation',
     'updatedAt',
   ].sort());
 });

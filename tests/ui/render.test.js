@@ -22,8 +22,13 @@ test('console supports prompted manual events and persists editable settings', a
 
 test('console exposes independent API connection fields', async () => {
   const text = await source();
-  for (const label of ['接口地址', 'API Key', '模型', 'password']) assert.match(text, new RegExp(label));
+  for (const label of ['接口地址', 'API Key', '模型', '拉取模型', '温度', '最大输出', '流式生成', 'password']) assert.match(text, new RegExp(label));
   assert.match(text, /connection\[key\]/);
+});
+
+test('console exposes director notes and selectable world-book controls', async () => {
+  const text = await source();
+  for (const label of ['导演指令', '世界书', '选择条目', '人物侧写', '生成中']) assert.match(text, new RegExp(label));
 });
 
 test('console gates the explicit erotic high-risk mode with a safeword', async () => {

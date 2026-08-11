@@ -1,5 +1,6 @@
 const TABS = [
   ['event', '事件'], ['threads', '伏笔'], ['cast', '人物'],
+  ['world', '世界书'],
   ['preferences', '偏好'], ['connection', '连接'], ['appearance', '外观'],
   ['snapshots', '副本'],
 ];
@@ -56,6 +57,10 @@ export function createDirectorConsole({ root, services }) {
     const create = el(doc, 'button', { type: 'button' }, '创建事件');
     create.onclick = () => { const value = idea.value.trim(); if (value) services.onManualEvent?.(value, expand.checked); };
     body.append(field('事件想法', idea), field('让 AI 扩展', expand), create);
+    const notes = el(doc, 'textarea', { 'aria-label': '导演指令', rows: '4', placeholder: '告诉导演本聊天要遵守的长期指令' });
+    notes.value = state.directorNotes ?? '';
+    notes.onchange = () => { state.directorNotes = notes.value.trim(); saveState(); };
+    body.append(field('导演指令', notes));
   }
 
   function renderPreferences(body, doc) {
@@ -122,6 +127,60 @@ export function createDirectorConsole({ root, services }) {
       input.onchange = () => { settings.connection[key] = input.value.trim(); saveSettings(); };
       body.append(field(label, input));
     }
+    const models = el(doc, 'select', { 'aria-label': '模型列表' });
+    models.append(el(doc, 'option', { value: '' }, settings.connection.model || '先拉取模型'));
+    models.onchange = () => { if (models.value) { settings.connection.model = models.value; saveSettings(); } };
+    const fetchModels = el(doc, 'button', { type: 'button' }, '拉取模型');
+    fetchModels.onclick = async () => {
+      fetchModels.disabled = true;
+      try {
+        const values = await services.listModels?.(settings.connection);
+        models.replaceChildren(...values.map((value) => el(doc, 'option', { value }, value)));
+        models.value = settings.connection.model;
+        services.notice?.(`已拉取 ${values.length} 个模型。`);
+      } catch (error) { services.notice?.(`拉取模型失败：${error.message}`); }
+      finally { fetchModels.disabled = false; }
+    };
+    body.append(field('模型选择', models), fetchModels);
+    const temperature = el(doc, 'input', { type: 'number', min: '0', max: '2', step: '0.1', value: String(settings.connection.temperature ?? 0.7) });
+    temperature.onchange = () => { settings.connection.temperature = Math.max(0, Math.min(2, Number(temperature.value) || 0.7)); saveSettings(); };
+    const maxTokens = el(doc, 'input', { type: 'number', min: '1', max: '100000', value: String(settings.connection.maxTokens ?? 2000) });
+    maxTokens.onchange = () => { settings.connection.maxTokens = Math.max(1, Number(maxTokens.value) || 2000); saveSettings(); };
+    const stream = el(doc, 'input', { type: 'checkbox', checked: settings.connection.stream });
+    stream.onchange = () => { settings.connection.stream = stream.checked; saveSettings(); };
+    body.append(field('温度', temperature), field('最大输出', maxTokens), field('流式生成', stream));
+  }
+
+  function renderWorldInfo(body, doc) {
+    const enabled = el(doc, 'input', { type: 'checkbox', checked: settings.context.worldInfo });
+    enabled.onchange = () => { settings.context.worldInfo = enabled.checked; saveSettings(); render(); };
+    body.append(field('读取世界书', enabled));
+    if (!settings.context.worldInfo) return;
+    body.append(el(doc, 'h4', {}, '世界书条目选择'));
+    body.append(selectField('世界书模式', settings.context.worldInfoMode ?? 'all', [['all', '全部条目'], ['selected', '选择条目']], (value) => { settings.context.worldInfoMode = value; saveSettings(); render(); }));
+    if (settings.context.worldInfoMode === 'selected') {
+      const entries = services.worldInfoEntries?.() ?? [];
+      if (!entries.length) body.append(el(doc, 'p', { class: 'stpd-muted' }, '当前聊天没有可读取的世界书条目。'));
+      for (const entry of entries) {
+        const id = entry.id ?? entry.uid ?? entry.name;
+        const checkbox = el(doc, 'input', { type: 'checkbox', checked: settings.context.worldInfoEntries.includes(id) });
+        checkbox.onchange = () => { settings.context.worldInfoEntries = checkbox.checked ? [...new Set([...settings.context.worldInfoEntries, id])] : settings.context.worldInfoEntries.filter((value) => value !== id); saveSettings(); };
+        body.append(field(entry.name || entry.comment || id, checkbox));
+      }
+    }
+  }
+
+  function renderProfile(body, doc) {
+    const profile = services.personalityProfile?.(settings.context) ?? { name: '', lines: [], sources: [] };
+    body.append(el(doc, 'h3', {}, '人物侧写'));
+    body.append(el(doc, 'p', { class: 'stpd-muted' }, state.cast?.mode === 'multi' ? `多人卡：${state.cast?.members?.length ?? 0} 人` : '单角色模式：根据角色卡与世界书整理'));
+    if (profile.name) body.append(el(doc, 'h4', {}, profile.name));
+    if (profile.lines.length) {
+      const list = el(doc, 'ul', { class: 'stpd-profile-list' });
+      for (const line of profile.lines) list.append(el(doc, 'li', {}, line));
+      body.append(list);
+      body.append(el(doc, 'p', { class: 'stpd-muted' }, `已纳入 ${profile.sources.length} 项人物证据`));
+    } else body.append(el(doc, 'p', { class: 'stpd-muted' }, '暂无人物资料，请先选择角色或填写世界书条目。'));
   }
 
   function renderSnapshots(body, doc) {
@@ -144,7 +203,8 @@ export function createDirectorConsole({ root, services }) {
     const doc = root.ownerDocument;
     if (active === 'event') renderEvent(body, doc);
     else if (active === 'threads') body.append(el(doc, 'p', {}, `伏笔 ${state.foreshadowing?.length ?? 0} 条`));
-    else if (active === 'cast') body.append(el(doc, 'p', {}, state.cast?.mode === 'multi' ? `多人卡：${state.cast.members.length} 人` : '单角色模式'));
+    else if (active === 'cast') renderProfile(body, doc);
+    else if (active === 'world') renderWorldInfo(body, doc);
     else if (active === 'preferences') renderPreferences(body, doc);
     else if (active === 'connection') renderConnection(body, doc);
     else if (active === 'snapshots') renderSnapshots(body, doc);
@@ -165,7 +225,8 @@ export function createDirectorConsole({ root, services }) {
     const overlay = el(doc, 'div', { class: 'stpd-overlay', role: 'presentation' });
     const modal = el(doc, 'section', { class: 'stpd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '主动导演' });
     const header = el(doc, 'header', { class: 'stpd-header stpd-row' });
-    header.append(el(doc, 'strong', { class: 'stpd-title' }, '主动导演'), el(doc, 'span', { class: `stpd-status stpd-status-${state.status}` }, state.status === 'active' ? '运行中' : '待机'));
+    const phaseLabels = { idle: '待机', collecting: '采集中', generating: '生成中', streaming: '流式生成中', injecting: '注入中', completed: '已完成', failed: '失败' };
+    header.append(el(doc, 'strong', { class: 'stpd-title' }, '主动导演'), el(doc, 'span', { class: `stpd-status stpd-status-${state.generation?.phase ?? state.status}` }, phaseLabels[state.generation?.phase] ?? '待机'));
     const stop = el(doc, 'button', { type: 'button', class: 'stpd-stop', 'aria-label': '立即停止导演', title: '立即停止' }, '■');
     stop.onclick = () => services.stop?.();
     const closeButton = el(doc, 'button', { type: 'button', class: 'stpd-close', 'aria-label': '关闭主动导演', title: '关闭' }, '×');

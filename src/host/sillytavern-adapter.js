@@ -42,6 +42,29 @@ export function createSillyTavernAdapter(contextProvider) {
       return getHost(contextProvider).chat ?? [];
     },
 
+    getWorldInfoEntries() {
+      const host = getHost(contextProvider);
+      const direct = host.worldInfoEntries ?? host.worldInfo?.entries;
+      if (Array.isArray(direct) || (direct && typeof direct === 'object')) return direct;
+      const cardEntries = host.characters?.[host.characterId]?.data?.character_book?.entries;
+      if (Array.isArray(cardEntries)) {
+        return cardEntries.map((entry, index) => ({
+          id: entry.id ?? entry.uid ?? String(index),
+          name: entry.name ?? entry.comment ?? entry.keys?.join(', ') ?? `条目 ${index + 1}`,
+          content: entry.content ?? entry.text ?? '',
+        }));
+      }
+      return [];
+    },
+
+    showSystemMessage(message) {
+      const host = getHost(contextProvider);
+      if (hasFunction(host.showSystemMessage)) return host.showSystemMessage(message);
+      if (typeof globalThis.toastr?.info === 'function') return globalThis.toastr.info(message);
+      if (typeof globalThis.toastr?.warning === 'function') return globalThis.toastr.warning(message);
+      return undefined;
+    },
+
     injectPrompt(...args) {
       return getHost(contextProvider).setExtensionPrompt?.(...args);
     },

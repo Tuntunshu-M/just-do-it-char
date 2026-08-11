@@ -10,6 +10,7 @@ import { createScheduler } from './src/director/scheduler.js';
 import { createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
+import { buildPersonalityProfile } from './src/director/personality-profile.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -56,16 +57,19 @@ export function initializeExtension() {
     await store.saveGlobal(settings);
   } });
   theme.preview(settings.theme);
+  const directorClient = createDirectorClient({ adapter: hostAdapter });
+  let rerender = () => {};
   const pipeline = createDirectorPipeline({
     adapter: hostAdapter,
     store,
-    client: createDirectorClient({ adapter: hostAdapter }),
+    client: directorClient,
     policy: { evaluatePolicy },
     engine,
     collector: collectDirectorContext,
     scheduler: createScheduler(),
+    onProgress: () => rerender(),
   });
-  const rerender = () => consoleInstance?.render({ settings, state });
+  rerender = () => consoleInstance?.render({ settings, state });
   const notice = (message) => hostAdapter.showSystemMessage?.(message);
   const downloadSnapshot = (options) => {
     const snapshot = exportSnapshot(state, options);
@@ -100,6 +104,19 @@ export function initializeExtension() {
       previewTheme: (value) => theme.preview(value),
       confirm: (message) => hostAdapter.showConfirm(message),
       notice,
+      listModels: (connection) => directorClient.listModels(connection),
+      worldInfoEntries: () => hostAdapter.getWorldInfoEntries(),
+      personalityProfile: (contextSettings) => {
+        const entries = hostAdapter.getWorldInfoEntries?.() ?? [];
+        const list = Array.isArray(entries) ? entries : Object.entries(entries).map(([id, entry]) => ({ id, ...entry }));
+        const selected = contextSettings?.worldInfoMode === 'selected'
+          ? new Set(contextSettings.worldInfoEntries ?? [])
+          : null;
+        const included = contextSettings?.worldInfo
+          ? list.filter((entry) => !selected || selected.has(entry.id ?? entry.uid ?? entry.name))
+          : [];
+        return buildPersonalityProfile(hostAdapter.getCharacterData(), included, contextSettings);
+      },
       exportSnapshot: downloadSnapshot,
       importSnapshot: importSnapshotFile,
       undoImport: async () => {
@@ -111,7 +128,9 @@ export function initializeExtension() {
       },
       stop: async () => {
         if (chatKey) await engine.stop(chatKey, state.characterFingerprint);
-        state.status = 'stopped'; state.activeEvent = null; rerender();
+        state.status = 'stopped'; state.activeEvent = null;
+        state.generation = { ...state.generation, phase: 'idle', finishedAt: new Date().toISOString() };
+        rerender();
       },
       onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
     },

@@ -38,6 +38,9 @@ export function createGlobalSettings() {
       endpoint: '',
       apiKey: '',
       model: '',
+      temperature: 0.7,
+      maxTokens: 2000,
+      stream: false,
       timeoutMs: 45000,
       mainReminderUntil: 0,
     },
@@ -47,6 +50,8 @@ export function createGlobalSettings() {
       exampleDialogue: true,
       chatBehavior: true,
       worldInfo: true,
+      worldInfoMode: 'all',
+      worldInfoEntries: [],
       messageLimit: 24,
     },
     defaults: {
@@ -72,6 +77,8 @@ export function createDirectorState(chatKey = null, fingerprint = null) {
     activeEvent: null,
     foreshadowing: [],
     historySummary: '',
+    directorNotes: '',
+    generation: { phase: 'idle', startedAt: null, finishedAt: null, error: '' },
     preference: {
       userAgency: 80,
       categoryOverrides: {},

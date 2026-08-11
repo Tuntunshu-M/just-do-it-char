@@ -22,3 +22,18 @@ test('genre detection recognizes infinite-flow and supernatural independently of
   assert.ok(hints.includes('infinite-flow'));
   assert.ok(hints.includes('supernatural'));
 });
+
+test('single-character context includes selected world-book entries and director notes', async () => {
+  const adapter = {
+    getCharacterData: () => ({ name: 'A', description: 'gentle' }),
+    getMessages: () => [],
+    getWorldInfoEntries: () => [{ id: 'a', name: '旅馆', content: 'hotel rules' }, { id: 'b', name: '城市', content: 'city map' }],
+    getContext: () => ({ chatMetadata: {} }),
+  };
+  const context = await collectDirectorContext(adapter, { historySummary: '', directorNotes: '让角色主动观察环境', cast: { mode: 'single' }, preference: {}, sceneSafety: {}, activeEvent: null, foreshadowing: [], ruleLedger: {} }, {
+    genre: { mode: 'auto' }, context: { directorNotes: true, card: true, exampleDialogue: false, chatBehavior: true, worldInfo: true, worldInfoMode: 'selected', worldInfoEntries: ['a'], messageLimit: 10 },
+  });
+  assert.equal(context.directorNotes, '让角色主动观察环境');
+  assert.deepEqual(context.worldInfoEntries, [{ id: 'a', name: '旅馆', content: 'hotel rules' }]);
+  assert.match(JSON.stringify(context.personalityEvidence), /gentle/);
+});
