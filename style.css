@@ -1,0 +1,6 @@
+#st-proactive-director {
+  --stpd-bg: var(--SmartThemeBlurTintColor, #202326);
+  --stpd-text: var(--SmartThemeBodyColor, #f2f2f2);
+  color: var(--stpd-text);
+  background: var(--stpd-bg);
+}
