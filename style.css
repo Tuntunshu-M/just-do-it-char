@@ -64,7 +64,8 @@
   box-shadow: 0 18px 60px var(--stpd-shadow);
 }
 #st-proactive-director .stpd-header { min-height: 52px; padding: 9px 12px; border-bottom: 1px solid var(--stpd-border); background: var(--stpd-panel); }
-#st-proactive-director .stpd-title { font-size: 15px; margin-right: auto; }
+#st-proactive-director .stpd-title-group { display: inline-flex; align-items: center; gap: 4px; min-width: 0; margin-right: auto; }
+#st-proactive-director .stpd-title { font-size: 15px; white-space: nowrap; }
 #st-proactive-director .stpd-status { display: inline-flex; align-items: center; gap: 6px; color: var(--stpd-muted); }
 #st-proactive-director .stpd-status { padding: 3px 8px; border: 1px solid var(--stpd-border); border-radius: 999px; font-size: 12px; }
 #st-proactive-director .stpd-status::before { content: ""; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--stpd-muted); }
@@ -84,11 +85,26 @@
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
+#st-proactive-director .stpd-theme-toggle {
+  flex: 0 0 28px;
+  inline-size: 28px;
+  block-size: 28px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  color: var(--stpd-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
 #st-proactive-director .stpd-stop { color: var(--stpd-danger); }
 #st-proactive-director .stpd-settings,
 #st-proactive-director .stpd-back { color: var(--stpd-muted); }
 #st-proactive-director .stpd-close { color: var(--stpd-muted); font-size: 20px; }
 #st-proactive-director .stpd-stop:hover,
+#st-proactive-director .stpd-theme-toggle:hover,
 #st-proactive-director .stpd-settings:hover,
 #st-proactive-director .stpd-back:hover,
 #st-proactive-director .stpd-close:hover { background: var(--stpd-hover); color: var(--stpd-text); border-color: var(--stpd-text); }
@@ -167,14 +183,17 @@
 #st-proactive-director .stpd-profile-list li { overflow-wrap: anywhere; }
 #st-proactive-director .stpd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #st-proactive-director .stpd-actions button { min-height: 36px; padding: 7px 11px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
-#st-proactive-director .stpd-theme-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-#st-proactive-director .stpd-theme-mode button { min-height: 34px; color: var(--stpd-muted); background: var(--stpd-bg); border: 1px solid var(--stpd-border); cursor: pointer; }
-#st-proactive-director .stpd-theme-mode button[aria-pressed="true"] { color: var(--stpd-button-text); background: var(--stpd-button-bg); border-color: var(--stpd-button-bg); }
+#st-proactive-director .stpd-theme-actions { gap: 6px; }
+#st-proactive-director .stpd-theme-actions button.stpd-compact { min-height: 30px; padding: 4px 8px; font-size: 12px; }
+#st-proactive-director .stpd-visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+#st-proactive-director .stpd-diagnostic-scroll { min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+#st-proactive-director .stpd-diagnostic-summary-scroll { max-height: 118px; }
+#st-proactive-director .stpd-diagnostic-checks-scroll { max-height: 220px; border: 1px solid var(--stpd-border); border-radius: 4px; }
 #st-proactive-director .stpd-diagnostic-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0; overflow: hidden; border: 1px solid var(--stpd-border); border-radius: 4px; background: var(--stpd-border); }
 #st-proactive-director .stpd-diagnostic-summary-row { display: grid; gap: 2px; min-width: 0; padding: 7px 9px; background: var(--stpd-bg); }
 #st-proactive-director .stpd-diagnostic-summary dt { color: var(--stpd-muted); font-size: 12px; }
 #st-proactive-director .stpd-diagnostic-summary dd { margin: 0; overflow-wrap: anywhere; }
-#st-proactive-director .stpd-diagnostic-checks { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--stpd-border); border-radius: 4px; background: var(--stpd-border); }
+#st-proactive-director .stpd-diagnostic-checks { display: grid; gap: 1px; min-width: 100%; width: max-content; background: var(--stpd-border); }
 #st-proactive-director .stpd-diagnostic-check { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; padding: 7px 9px; border-left: 3px solid var(--stpd-muted); background: var(--stpd-bg); }
 #st-proactive-director .stpd-diagnostic-check p { grid-column: 1 / -1; color: var(--stpd-muted); font-size: 13px; }
 #st-proactive-director .stpd-diagnostic-badge { align-self: start; white-space: nowrap; color: var(--stpd-muted); font-size: 12px; }

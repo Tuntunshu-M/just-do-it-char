@@ -34,7 +34,9 @@ export function renderDiagnosticsView({ body, state, services, saveState, rerend
     summaryRow(doc, '上次检查', displayTime(lastCheck?.checkedAt)),
     summaryRow(doc, '最近记录', `${diagnostics.records.length} / 20`),
   );
-  body.append(summary);
+  const summaryScroll = el(doc, 'div', { class: 'stpd-diagnostic-scroll stpd-diagnostic-summary-scroll', tabindex: '0', 'aria-label': '当前状态' });
+  summaryScroll.append(summary);
+  body.append(summaryScroll);
 
   const actions = el(doc, 'div', { class: 'stpd-actions stpd-diagnostic-actions' });
   const run = el(doc, 'button', { type: 'button', class: 'stpd-primary' }, '运行检查');
@@ -67,7 +69,9 @@ export function renderDiagnosticsView({ body, state, services, saveState, rerend
     row.append(el(doc, 'strong', {}, check.label), el(doc, 'span', { class: 'stpd-diagnostic-badge' }, CHECK_STATUS_LABELS[check.status] ?? check.status), el(doc, 'p', {}, check.message));
     checks.append(row);
   }
-  body.append(checks, el(doc, 'h3', {}, '最近记录'));
+  const checksScroll = el(doc, 'div', { class: 'stpd-diagnostic-scroll stpd-diagnostic-checks-scroll', tabindex: '0', 'aria-label': '检查结果' });
+  checksScroll.append(checks);
+  body.append(checksScroll, el(doc, 'h3', {}, '最近记录'));
 
   const records = el(doc, 'div', { class: 'stpd-diagnostic-records' });
   if (!diagnostics.records.length) records.append(el(doc, 'p', { class: 'stpd-muted' }, '当前聊天还没有事件生成记录。'));

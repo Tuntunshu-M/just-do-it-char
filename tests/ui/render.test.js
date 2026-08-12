@@ -86,10 +86,10 @@ test('settings diagnostics page exposes checks, reports, and retained event outc
   assert.match(text, /services\.copyDiagnosticReport/);
 });
 
-test('appearance page exposes day and night modes plus a CSS template export', async () => {
+test('appearance page exposes CSS customization and a CSS template export', async () => {
   const text = await uiSource('views/appearance.js');
-  for (const label of ['白天', '夜晚', '导出 CSS 模板']) assert.match(text, new RegExp(label));
-  assert.match(text, /theme\.mode/);
+  assert.match(text, /导出 CSS 模板/);
+  assert.doesNotMatch(text, /stpd-theme-mode/);
   assert.match(text, /exportCssTemplate/);
 });
 

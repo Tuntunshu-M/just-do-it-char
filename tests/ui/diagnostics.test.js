@@ -76,3 +76,20 @@ test('diagnostics view copies a sanitized report and clears retained records', a
   assert.equal(saves, 1);
   assert.equal(renders, 1);
 });
+
+test('diagnostics view marks current status and check results as independently scrollable', () => {
+  const doc = createDocument();
+  const body = doc.createElement('section');
+  const state = {
+    generation: { phase: 'idle' },
+    diagnostics: {
+      records: [],
+      lastCheck: { checkedAt: 'now', summary: {}, checks: [{ id: 'chat', label: '当前聊天', status: 'pass', message: '已连接' }] },
+    },
+  };
+
+  renderDiagnosticsView({ body, state, services: {}, saveState() {}, rerender() {} });
+
+  assert.ok(all(body).find((node) => node.className.includes('stpd-diagnostic-summary-scroll')));
+  assert.ok(all(body).find((node) => node.className.includes('stpd-diagnostic-checks-scroll')));
+});
