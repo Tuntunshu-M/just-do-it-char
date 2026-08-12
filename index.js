@@ -35,7 +35,7 @@ function openAfterMenuDismissal(entry) {
   setTimeout(open, 80);
 }
 
-function mountWandEntry(openConsole) {
+export function mountWandEntry(openConsole) {
   const menu = document.querySelector('#extensionsMenu');
   if (!menu) return () => {};
   const existing = document.querySelector('#stpd-menu-entry');
@@ -43,9 +43,9 @@ function mountWandEntry(openConsole) {
   else {
     const entry = document.createElement('div');
     entry.id = 'stpd-menu-entry';
-    entry.className = 'extensionsMenuExtensionButton stpd-menu-entry';
+    entry.className = 'stpd-menu-entry';
     const icon = document.createElement('span');
-    icon.className = 'stpd-menu-icon fa-solid fa-clapperboard';
+    icon.className = 'stpd-menu-icon fa-solid fa-clapperboard extensionsMenuExtensionButton';
     icon.setAttribute('aria-hidden', 'true');
     const label = document.createElement('span');
     label.className = 'stpd-menu-label';
