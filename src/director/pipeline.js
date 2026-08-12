@@ -44,7 +44,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
   async function execute(userText, intent, token, chatKey) {
     const settings = store.loadGlobal();
     if (!settings.enabled) return { skipped: true };
-    const state = store.loadChat(chatKey);
+    let state = store.loadChat(chatKey);
     if (intent.type === 'advance') state.counters.turns = (state.counters.turns ?? 0) + 1;
     const automatic = intent.type === 'advance' || intent.type === 'idle';
     if (automatic && scheduler && !scheduler.shouldTrigger(state, settings.trigger, intent.environment)) return { skipped: true };
@@ -122,7 +122,8 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');
       injectionCleared = true;
       await setDiagnosticStage('commit');
-      await engine.commit(chatKey, state.characterFingerprint);
+      const committedState = await engine.commit(chatKey, state.characterFingerprint);
+      if (committedState?.chatKey) state = committedState;
       state.lastInjection = result.injection;
       if (result.event) {
         const dayKey = new Date().toISOString().slice(0, 10);

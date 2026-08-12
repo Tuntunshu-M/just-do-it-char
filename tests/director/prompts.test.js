@@ -9,3 +9,20 @@ test('prompt preserves character authority and requests compact JSON only', () =
   assert.match(messages[0].content, /JSON/);
   assert.match(messages[1].content, /personalityEvidence/);
 });
+
+test('prompt includes a complete required JSON contract and null-event fallback', () => {
+  const [system] = buildDirectorMessages({}, { type: 'advance' });
+  for (const field of ['event', 'feedback', 'actions', 'branches', 'risks', 'foreshadowing', 'ruleLedgerUpdate', 'injection']) {
+    assert.match(system.content, new RegExp(`"${field}"`));
+  }
+  assert.match(system.content, /"event"\s*:\s*null/);
+  assert.match(system.content, /exactly one JSON object/i);
+  assert.match(system.content, /never omit required fields/i);
+});
+
+test('prompt defines every required action field', () => {
+  const [system] = buildDirectorMessages({}, { type: 'advance' });
+  assert.match(system.content, /"characterId"\s*:/);
+  assert.match(system.content, /"action"\s*:/);
+  assert.match(system.content, /"evidence"\s*:/);
+});

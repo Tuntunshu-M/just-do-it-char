@@ -22,6 +22,35 @@ test('independent client sends OpenAI compatible request', async () => {
   assert.equal(body.stream, false);
 });
 
+test('independent non-streaming client accepts choices text responses', async () => {
+  const client = createDirectorClient({ adapter: {}, fetchImpl: async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ text: JSON.stringify(result) }] }),
+  }) });
+  const output = await client.requestDirector(
+    { context: {}, intent: {} },
+    { mode: 'independent', endpoint: 'https://api.test/v1', model: 'model', stream: false },
+  );
+  assert.deepEqual(output, result);
+});
+
+test('independent non-streaming client joins structured content arrays', async () => {
+  const serialized = JSON.stringify(result);
+  const midpoint = Math.floor(serialized.length / 2);
+  const client = createDirectorClient({ adapter: {}, fetchImpl: async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: [
+      { type: 'text', text: serialized.slice(0, midpoint) },
+      { type: 'text', text: serialized.slice(midpoint) },
+    ] } }] }),
+  }) });
+  const output = await client.requestDirector(
+    { context: {}, intent: {} },
+    { mode: 'independent', endpoint: 'https://api.test/v1', model: 'model', stream: false },
+  );
+  assert.deepEqual(output, result);
+});
+
 test('independent client lists models from the compatible API', async () => {
   const client = createDirectorClient({ adapter: {}, fetchImpl: async (url, options) => {
     assert.equal(url, 'https://api.test/v1/models');
@@ -64,6 +93,32 @@ test('main connection reminder is suppressed for 24 hours', async () => {
   await client.requestDirector({ context: {}, intent: {} }, connection);
   assert.equal(confirms, 1);
   assert.equal(connection.mainReminderUntil, 1000 + 24 * 60 * 60 * 1000);
+});
+
+test('main connection extracts a wrapped output_text response', async () => {
+  const adapter = {
+    showConfirm: async () => false,
+    generateDirector: async () => ({ response: { output_text: JSON.stringify(result) } }),
+  };
+  const client = createDirectorClient({ adapter });
+  assert.deepEqual(
+    await client.requestDirector({ context: {}, intent: {} }, { mode: 'main' }),
+    result,
+  );
+});
+
+test('client reports an explicit error when the API returns empty content', async () => {
+  const client = createDirectorClient({ adapter: {}, fetchImpl: async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: '' } }] }),
+  }) });
+  await assert.rejects(
+    client.requestDirector(
+      { context: {}, intent: {} },
+      { mode: 'independent', endpoint: 'https://api.test/v1', model: 'model', stream: false },
+    ),
+    /empty content/i,
+  );
 });
 
 test('independent connection failure does not fall back to main', async () => {

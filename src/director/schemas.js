@@ -5,8 +5,21 @@ function requireType(condition, message) {
   if (!condition) throw new TypeError(`Invalid director result: ${message}`);
 }
 
+function normalizeDirectorResult(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
+  return {
+    ...value,
+    actions: value.actions.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item) || item.action != null || typeof item.text !== 'string') return item;
+      const { text, ...action } = item;
+      return { ...action, action: text };
+    }),
+  };
+}
+
 export function validateDirectorResult(value) {
   requireType(value && typeof value === 'object' && !Array.isArray(value), 'root must be an object');
+  requireType(Object.hasOwn(value, 'event'), 'event field is required');
   if (value.event !== null) {
     requireType(value.event && typeof value.event === 'object', 'event must be an object or null');
     requireType(typeof value.event.title === 'string', 'event title is required');
@@ -35,15 +48,16 @@ export function validateDirectorResult(value) {
 }
 
 export function parseDirectorResult(content) {
-  if (content && typeof content === 'object') return validateDirectorResult(content);
+  if (content && typeof content === 'object') return validateDirectorResult(normalizeDirectorResult(content));
   const text = String(content ?? '').trim();
+  if (!text) throw new Error('Director API returned empty content');
   const unfenced = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   try {
-    return validateDirectorResult(JSON.parse(unfenced));
+    return validateDirectorResult(normalizeDirectorResult(JSON.parse(unfenced)));
   } catch (initialError) {
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start < 0 || end <= start) throw initialError;
-    return validateDirectorResult(JSON.parse(text.slice(start, end + 1)));
+    return validateDirectorResult(normalizeDirectorResult(JSON.parse(text.slice(start, end + 1))));
   }
 }

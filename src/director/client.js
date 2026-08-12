@@ -14,11 +14,39 @@ function modelsUrl(endpoint) {
   return base.endsWith('/models') ? base : `${base}/models`;
 }
 
-function extractMainContent(response) {
-  return response?.choices?.[0]?.message?.content
-    ?? response?.message?.content
-    ?? response?.content
-    ?? response;
+function normalizeContent(value) {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map((part) => normalizeContent(part)).join('');
+  if (!value || typeof value !== 'object') return value;
+  if (typeof value.text === 'string') return value.text;
+  if (typeof value.value === 'string') return value.value;
+  return undefined;
+}
+
+function extractResponseContent(response) {
+  if (typeof response === 'string' || Array.isArray(response)) return normalizeContent(response);
+  if (!response || typeof response !== 'object') return response;
+  if (Object.hasOwn(response, 'event')) return response;
+
+  const candidates = [
+    response.choices?.[0]?.delta?.content,
+    response.choices?.[0]?.message?.content,
+    response.choices?.[0]?.text,
+    response.output_text,
+    response.message?.content,
+    response.content,
+  ];
+  for (const candidate of candidates) {
+    const content = normalizeContent(candidate);
+    if (content !== undefined) return content;
+  }
+  for (const wrapper of [response.response, response.result, response.output]) {
+    if (wrapper !== undefined) {
+      const content = extractResponseContent(wrapper);
+      if (content !== undefined) return content;
+    }
+  }
+  return undefined;
 }
 
 export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, clock = Date.now } = {}) {
@@ -50,7 +78,7 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
       }
       if (connection.stream) return readStream(response.body, connection.onUpdate);
       const payload = await response.json();
-      return payload?.choices?.[0]?.message?.content;
+      return extractResponseContent(payload);
     } catch (error) {
       if (controller.signal.aborted || error?.name === 'AbortError') {
         const timeoutError = new Error('导演 API 请求超时，请检查连接或增加超时时间。');
@@ -85,7 +113,7 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
         const data = line.slice(5).trim();
         if (data === '[DONE]') continue;
         try {
-          const chunk = JSON.parse(data)?.choices?.[0]?.delta?.content ?? '';
+          const chunk = extractResponseContent(JSON.parse(data)) ?? '';
           content += chunk;
           onUpdate?.({ phase: 'streaming', text: content });
         } catch { /* ignore incomplete provider events */ }
@@ -95,7 +123,7 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
       const data = buffer.slice(5).trim();
       if (data && data !== '[DONE]') {
         try {
-          const chunk = JSON.parse(data)?.choices?.[0]?.delta?.content ?? JSON.parse(data)?.choices?.[0]?.message?.content ?? '';
+          const chunk = extractResponseContent(JSON.parse(data)) ?? '';
           content += chunk;
           onUpdate?.({ phase: 'streaming', text: content });
         } catch { /* ignore incomplete provider events */ }
@@ -119,7 +147,7 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
       content = await requestIndependent(messages, { ...connection, onUpdate });
     } else if (connection.mode === 'main') {
       await remindForMainConnection(connection);
-      content = extractMainContent(await adapter.generateDirector(messages));
+      content = extractResponseContent(await adapter.generateDirector(messages));
     } else {
       throw new Error(`Unknown director connection mode: ${connection.mode}`);
     }

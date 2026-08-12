@@ -5,6 +5,23 @@ test('pipeline injects, generates, clears prompt and commits in order', async()=
  const pipeline=createDirectorPipeline({adapter:{getCurrentChatKey:()=> 'c',injectPrompt:async(_key,value)=>order.push(value?'inject':'clear'),generateReply:async()=>order.push('generate')},store:{loadGlobal:()=>({enabled:true,connection:{},trigger:{mode:'every'},categories:{daily:{enabled:true}}}),loadChat:()=>state},client:{requestDirector:async()=>({event:{title:'event',category:'daily'},feedback:{classification:'neutral'},actions:[],branches:[],risks:[],foreshadowing:[],ruleLedgerUpdate:{},injection:'act'})},policy:{evaluatePolicy:()=>({allowed:true})},engine:{stage:async()=>order.push('stage'),commit:async()=>order.push('commit'),rollback:async()=>order.push('rollback')},collector:async()=>({})});
  await pipeline.handleUserMessage('hi'); assert.deepEqual(order,['stage','inject','generate','clear','commit']);
 });
+
+test('pipeline preserves the event state returned by commit', async () => {
+ const initial={chatKey:'c',characterFingerprint:'f',preference:{},sceneSafety:{},counters:{turns:0,eventsToday:0},cooldowns:{}};
+ const saved=[]; const rendered=[];
+ const committed={...structuredClone(initial),activeEvent:{title:'Committed event',category:'daily',status:'active'},status:'active'};
+ const pipeline=createDirectorPipeline({
+  adapter:{getCurrentChatKey:()=> 'c',injectPrompt:async()=>{},generateReply:async()=>{}},
+  store:{loadGlobal:()=>({enabled:true,connection:{},trigger:{mode:'every'},categories:{daily:{enabled:true}}}),loadChat:()=>initial,saveChat:async(value)=>saved.push(structuredClone(value))},
+  client:{requestDirector:async()=>({event:{title:'Committed event',category:'daily'},feedback:{classification:'neutral'},actions:[],branches:[],risks:[],foreshadowing:[],ruleLedgerUpdate:{},injection:'act'})},
+  policy:{evaluatePolicy:()=>({allowed:true})},
+  engine:{stage:async()=>{},commit:async()=>structuredClone(committed),rollback:async()=>{}},
+  collector:async()=>({}),onProgress:(value)=>rendered.push(structuredClone(value)),
+ });
+ await pipeline.manualCreate('',true);
+ assert.equal(saved.at(-1).activeEvent?.title,'Committed event');
+ assert.equal(rendered.at(-1).activeEvent?.title,'Committed event');
+});
 test('pipeline clears injection and rolls back when main generation fails', async()=>{
  const order=[]; const state={chatKey:'c',characterFingerprint:'f',preference:{},sceneSafety:{},counters:{turns:0},cooldowns:{}};
  const pipeline=createDirectorPipeline({adapter:{getCurrentChatKey:()=> 'c',injectPrompt:async(_key,value)=>order.push(value?'inject':'clear'),generateReply:async()=>{throw new Error('main failed');}},store:{loadGlobal:()=>({enabled:true,connection:{},trigger:{mode:'every'},categories:{daily:{enabled:true}}}),loadChat:()=>state},client:{requestDirector:async()=>({event:{title:'event',category:'daily'},foreshadowing:[],injection:'act'})},policy:{evaluatePolicy:()=>({allowed:true})},engine:{stage:async()=>order.push('stage'),commit:async()=>order.push('commit'),rollback:async()=>order.push('rollback')},collector:async()=>({})});
