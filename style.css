@@ -26,6 +26,8 @@
 #st-proactive-director .stpd-overlay {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100dvh;
   z-index: 10000;
   display: grid;
   place-items: center;
