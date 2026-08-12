@@ -25,8 +25,19 @@ test('extension reloads chat state and world books after chat changes', async ()
   assert.doesNotMatch(source, /const chatKey = hostAdapter\.getCurrentChatKey/);
 });
 
-test('native wand menu entry remains visible when its icon font is unavailable', async () => {
+test('native menu entry uses a clapperboard and the Director Time label', async () => {
   const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
 
-  assert.match(source, /entry\.textContent = '主动导演'/);
+  assert.match(source, /fa-clapperboard/);
+  assert.match(source, /label\.textContent = '导演时间'/);
+  assert.doesNotMatch(source, /fa-wand-magic-sparkles/);
+});
+
+test('native menu entry keeps its label horizontal and fully clickable', async () => {
+  const css = await (await import('node:fs/promises')).readFile(new URL('../../style.css', import.meta.url), 'utf8');
+
+  assert.match(css, /#stpd-menu-entry\s*\{[^}]*display:\s*flex/);
+  assert.match(css, /#stpd-menu-entry\s*\{[^}]*flex-direction:\s*row/);
+  assert.match(css, /#stpd-menu-entry\s*\{[^}]*white-space:\s*nowrap/);
+  assert.match(css, /#stpd-menu-entry\s*\{[^}]*width:\s*100%/);
 });

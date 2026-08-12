@@ -30,10 +30,16 @@ function mountWandEntry(openConsole) {
   else {
     const entry = document.createElement('div');
     entry.id = 'stpd-menu-entry';
-    entry.className = 'extensionsMenuExtensionButton stpd-menu-entry fa-solid fa-wand-magic-sparkles';
-    entry.textContent = '主动导演';
-    entry.title = '打开主动导演';
-    entry.setAttribute('aria-label', '打开主动导演');
+    entry.className = 'extensionsMenuExtensionButton stpd-menu-entry';
+    const icon = document.createElement('span');
+    icon.className = 'stpd-menu-icon fa-solid fa-clapperboard';
+    icon.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span');
+    label.className = 'stpd-menu-label';
+    label.textContent = '导演时间';
+    entry.append(icon, label);
+    entry.title = '打开导演时间';
+    entry.setAttribute('aria-label', '打开导演时间');
     entry.setAttribute('role', 'button');
     entry.tabIndex = 0;
     entry.onclick = openConsole;
@@ -95,7 +101,7 @@ export function initializeExtension() {
     return hostAdapter.getWorldInfoEntriesAsync?.().then((entries) => {
       worldInfoCache = entries;
       rerender();
-    }).catch((error) => console.warn('[主动导演] 世界书读取失败', error));
+    }).catch((error) => console.warn('[导演时间] 世界书读取失败', error));
   };
   reloadWorldInfo();
   const downloadSnapshot = (options) => {
@@ -119,7 +125,7 @@ export function initializeExtension() {
         refresh();
       });
     } catch (error) {
-      console.error('[主动导演] snapshot import failed', error);
+      console.error('[导演时间] snapshot import failed', error);
       notice?.('副本导入失败，请检查 JSON 文件。');
     }
   };
@@ -195,7 +201,7 @@ export function initializeExtension() {
   const scheduleIdle = () => {
     clearTimeout(idleTimer);
     if (!settings.trigger.idleEnabled || !chatKey || isGroupChat()) return;
-    idleTimer = setTimeout(() => pipeline.handleIdle({ hidden: document.hidden, userTyping: false }).catch((error) => console.error('[主动导演]', error)), Math.max(1, settings.trigger.idleMinutes) * 60000);
+    idleTimer = setTimeout(() => pipeline.handleIdle({ hidden: document.hidden, userTyping: false }).catch((error) => console.error('[导演时间]', error)), Math.max(1, settings.trigger.idleMinutes) * 60000);
   };
   const composer = document.querySelector('#send_textarea');
   const onTyping = () => scheduleIdle();
@@ -205,7 +211,7 @@ export function initializeExtension() {
   unsubscribers.push(hostAdapter.on(userEvent, (messageIndex) => {
     if (!chatKey || isGroupChat()) return;
     const message = hostAdapter.getMessages()[messageIndex] ?? hostAdapter.getMessages().at(-1);
-    pipeline.handleUserMessage(message?.mes ?? '').catch((error) => console.error('[主动导演]', error));
+    pipeline.handleUserMessage(message?.mes ?? '').catch((error) => console.error('[导演时间]', error));
     scheduleIdle();
   }));
   if (isGroupChat()) {

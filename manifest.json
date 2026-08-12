@@ -1,12 +1,12 @@
 {
-  "display_name": "主动导演",
+  "display_name": "导演时间",
   "loading_order": 50,
   "requires": [],
   "optional": [],
   "js": "index.js",
   "css": "style.css",
   "author": "Codex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "homePage": "https://github.com/Tuntunshu-M/just-do-it-char",
   "auto_update": true
 }

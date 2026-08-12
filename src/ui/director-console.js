@@ -44,14 +44,14 @@ export function createDirectorConsole({ root, services }) {
     root.className = `stpd-console${open ? ' stpd-modal-open' : ''}`;
     const doc = root.ownerDocument;
     const overlay = el(doc, 'div', { class: 'stpd-overlay', role: 'presentation' });
-    const modal = el(doc, 'section', { class: 'stpd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '主动导演' });
+    const modal = el(doc, 'section', { class: 'stpd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '导演时间' });
     const header = el(doc, 'header', { class: 'stpd-header stpd-row' });
     const phase = state.generation?.phase ?? state.status;
     const phaseLabels = { idle: '待机', collecting: '采集中', generating: '生成中', streaming: '流式生成中', injecting: '注入中', completed: '已完成', failed: '失败' };
-    header.append(el(doc, 'strong', { class: 'stpd-title' }, '主动导演'), el(doc, 'span', { class: `stpd-status stpd-status-${phase}` }, phaseLabels[phase] ?? '待机'));
+    header.append(el(doc, 'strong', { class: 'stpd-title' }, '导演时间'), el(doc, 'span', { class: `stpd-status stpd-status-${phase}` }, phaseLabels[phase] ?? '待机'));
     const stop = el(doc, 'button', { type: 'button', class: 'stpd-stop', 'aria-label': '立即停止导演', title: '立即停止' }, '■');
     stop.onclick = () => services.stop?.();
-    const closeButton = el(doc, 'button', { type: 'button', class: 'stpd-close', 'aria-label': '关闭主动导演', title: '关闭' }, '×');
+    const closeButton = el(doc, 'button', { type: 'button', class: 'stpd-close', 'aria-label': '关闭导演时间', title: '关闭' }, '×');
     closeButton.onclick = close;
     header.append(stop, closeButton);
     const nav = el(doc, 'nav', { class: 'stpd-tabs', 'aria-label': '导演控制台' });

@@ -124,8 +124,24 @@
 #st-proactive-director .stpd-summary dt { color: var(--stpd-muted); }
 #st-proactive-director .stpd-summary dd { margin: 0; text-align: right; }
 
-#stpd-menu-entry { cursor: pointer; }
-#stpd-menu-entry::before { margin-right: 6px; }
+#stpd-menu-entry {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  gap: 6px;
+  padding-inline: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+#stpd-menu-entry .stpd-menu-icon,
+#stpd-menu-entry .stpd-menu-label { display: inline-block; flex: 0 0 auto; writing-mode: horizontal-tb; }
+#stpd-menu-entry .stpd-menu-icon { inline-size: 18px; text-align: center; }
+#stpd-menu-entry .stpd-menu-label { white-space: nowrap; }
 
 @media (max-width: 520px) {
   #st-proactive-director .stpd-overlay { padding: 12px; }

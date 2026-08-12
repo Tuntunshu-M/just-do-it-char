@@ -6,7 +6,7 @@ test('manifest exposes the files and metadata required for URL installation', as
   const raw = await readFile(new URL('../manifest.json', import.meta.url), 'utf8');
   const manifest = JSON.parse(raw);
 
-  assert.equal(manifest.display_name, '主动导演');
+  assert.equal(manifest.display_name, '导演时间');
   assert.equal(typeof manifest.version, 'string');
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.equal(typeof manifest.loading_order, 'number');
@@ -17,9 +17,9 @@ test('manifest exposes the files and metadata required for URL installation', as
   assert.equal(typeof manifest.auto_update, 'boolean');
 });
 
-test('manifest advertises the visible wand-entry release', async () => {
+test('manifest advertises the Director Time menu release', async () => {
   const raw = await readFile(new URL('../manifest.json', import.meta.url), 'utf8');
   const manifest = JSON.parse(raw);
 
-  assert.equal(manifest.version, '0.2.0');
+  assert.equal(manifest.version, '0.2.1');
 });
