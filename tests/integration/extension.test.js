@@ -41,3 +41,10 @@ test('native menu entry keeps its label horizontal and fully clickable', async (
   assert.match(css, /#stpd-menu-entry\s*\{[^}]*white-space:\s*nowrap/);
   assert.match(css, /#stpd-menu-entry\s*\{[^}]*width:\s*100%/);
 });
+
+test('native menu click opens the console after the host menu dismisses', async () => {
+  const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
+
+  assert.match(source, /entry\.addEventListener\('click',\s*\(event\) => \{/);
+  assert.match(source, /event\.preventDefault\(\);\s*queueMicrotask\(\(\) => entry\.__stpdOpenConsole\?\.\(\)\);/);
+});

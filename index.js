@@ -26,7 +26,7 @@ function mountWandEntry(openConsole) {
   const menu = document.querySelector('#extensionsMenu');
   if (!menu) return () => {};
   const existing = document.querySelector('#stpd-menu-entry');
-  if (existing) existing.onclick = openConsole;
+  if (existing) existing.__stpdOpenConsole = openConsole;
   else {
     const entry = document.createElement('div');
     entry.id = 'stpd-menu-entry';
@@ -42,8 +42,17 @@ function mountWandEntry(openConsole) {
     entry.setAttribute('aria-label', '打开导演时间');
     entry.setAttribute('role', 'button');
     entry.tabIndex = 0;
-    entry.onclick = openConsole;
-    entry.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openConsole(); } };
+    entry.__stpdOpenConsole = openConsole;
+    entry.addEventListener('click', (event) => {
+      event.preventDefault();
+      queueMicrotask(() => entry.__stpdOpenConsole?.());
+    });
+    entry.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        queueMicrotask(() => entry.__stpdOpenConsole?.());
+      }
+    });
     const target = menu.querySelector('.extension_container') ?? menu;
     target.append(entry);
   }
