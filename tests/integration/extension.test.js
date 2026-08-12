@@ -24,3 +24,9 @@ test('extension reloads chat state and world books after chat changes', async ()
   assert.match(source, /if \(isGroupChat\(\)\) state\.status = 'paused';\s*rerender\(\);/);
   assert.doesNotMatch(source, /const chatKey = hostAdapter\.getCurrentChatKey/);
 });
+
+test('native wand menu entry remains visible when its icon font is unavailable', async () => {
+  const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
+
+  assert.match(source, /entry\.textContent = '主动导演'/);
+});

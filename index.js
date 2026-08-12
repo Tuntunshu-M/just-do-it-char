@@ -31,6 +31,7 @@ function mountWandEntry(openConsole) {
     const entry = document.createElement('div');
     entry.id = 'stpd-menu-entry';
     entry.className = 'extensionsMenuExtensionButton stpd-menu-entry fa-solid fa-wand-magic-sparkles';
+    entry.textContent = '主动导演';
     entry.title = '打开主动导演';
     entry.setAttribute('aria-label', '打开主动导演');
     entry.setAttribute('role', 'button');
