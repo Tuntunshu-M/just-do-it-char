@@ -19,9 +19,9 @@ export function renderPreferencesView({ body, settings, state, services, saveSet
     const permission = state.preference.consequencePermissions[key] ?? settings.defaults.consequencePermissions[key] ?? 'ask';
     body.append(selectField(doc, label, permission, [['forbidden', '禁止'], ['ask', '先询问'], ['authorized', '允许']], (value) => { state.preference.consequencePermissions[key] = value; saveState(); }));
   }
-  const safewords = el(doc, 'textarea', { rows: '2', placeholder: '安全词，用逗号或换行分隔' }); safewords.value = state.sceneSafety.safewords.join(', ');
+  const safewords = el(doc, 'textarea', { rows: '2', placeholder: '支持中文逗号、英文逗号或换行分隔' }); safewords.value = state.sceneSafety.safewords.join(', ');
   safewords.onchange = () => { state.sceneSafety.safewords = lines(safewords.value); if (!state.sceneSafety.safewords.length) state.sceneSafety.cncEnabled = false; saveState(); rerender(); };
-  const hardLimits = el(doc, 'textarea', { rows: '2', placeholder: '硬禁区，用逗号或换行分隔' }); hardLimits.value = state.sceneSafety.hardLimits.join(', '); hardLimits.onchange = () => { state.sceneSafety.hardLimits = lines(hardLimits.value); saveState(); };
+  const hardLimits = el(doc, 'textarea', { rows: '2', placeholder: '支持中文逗号、英文逗号或换行分隔' }); hardLimits.value = state.sceneSafety.hardLimits.join(', '); hardLimits.onchange = () => { state.sceneSafety.hardLimits = lines(hardLimits.value); saveState(); };
   body.append(field(doc, '安全词', safewords), field(doc, '硬禁区', hardLimits));
   const cnc = el(doc, 'input', { type: 'checkbox', checked: state.sceneSafety.cncEnabled });
   cnc.onchange = async () => { if (!cnc.checked) { state.sceneSafety.cncEnabled = false; saveState(); return; } if (!state.sceneSafety.safewords.length) { cnc.checked = false; services.notice?.('请先填写安全词。'); return; } const accepted = await confirmAction(services, '启用高风险模式后，导演只会在当前聊天授权范围内解释角色内口头反抗；安全词和硬禁区始终有效。'); if (accepted) { state.sceneSafety.cncEnabled = true; saveState(); } else cnc.checked = false; };

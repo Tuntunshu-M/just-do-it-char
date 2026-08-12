@@ -13,12 +13,12 @@ test('extension entry exports lifecycle and keeps host access in adapter', async
   }
 });
 
-test('extension reloads chat state and world books after chat changes', async () => {
+test('extension reloads chat state and clears the world-book cache after chat changes', async () => {
   const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
   assert.match(source, /let chatKey =/);
   assert.match(source, /chatKey = hostAdapter\.getCurrentChatKey\(\)/);
   assert.match(source, /CHAT_CHANGED/);
-  assert.match(source, /reloadWorldInfo\(\)/);
+  assert.match(source, /worldBookCache\.clear\(\)/);
   assert.match(source, /scheduleIdle\(\)/);
   assert.match(source, /if \(!settings\.trigger\.idleEnabled \|\| !chatKey \|\| isGroupChat\(\)\) return/);
   assert.match(source, /if \(isGroupChat\(\)\) state\.status = 'paused';\s*rerender\(\);/);
@@ -33,7 +33,7 @@ test('native menu entry uses a clapperboard and the Director Time label', async 
   assert.doesNotMatch(source, /fa-wand-magic-sparkles/);
 });
 
-test('native menu entry keeps the host pointer-blocking class on its icon and opens when clicked', async () => {
+test('native menu entry mounts as its own host menu item and opens when clicked', async () => {
   const { mountWandEntry } = await import('../../index.js');
   const byId = new Map();
   const createElement = (tagName) => {
@@ -47,16 +47,19 @@ test('native menu entry keeps the host pointer-blocking class on its icon and op
       get className() { return [...classes].join(' '); },
       set id(value) { this._id = value; byId.set(value, this); },
       get id() { return this._id; },
-      append(...children) { this.children.push(...children); },
+      append(...children) {
+        this.children.push(...children);
+        children.forEach((child) => { child.parentElement = this; });
+      },
       setAttribute() {},
       addEventListener(type, listener) { listeners.set(type, listener); },
       dispatchEvent(event) { listeners.get(event.type)?.(event); },
       remove() { byId.delete(this.id); },
     };
   };
-  const container = createElement('div');
+  const existingContainer = createElement('div');
   const menu = createElement('div');
-  menu.querySelector = (selector) => selector === '.extension_container' ? container : null;
+  menu.querySelector = (selector) => selector === '.extension_container' ? existingContainer : null;
   const previousDocument = globalThis.document;
   const previousAnimationFrame = globalThis.requestAnimationFrame;
   globalThis.document = {
@@ -69,7 +72,13 @@ test('native menu entry keeps the host pointer-blocking class on its icon and op
     mountWandEntry(() => { opened += 1; });
     const entry = byId.get('stpd-menu-entry');
     const icon = entry.children[0];
+    const container = entry.parentElement;
 
+    assert.notEqual(container, existingContainer);
+    assert.equal(container.parentElement, menu);
+    assert.equal(container.classList.contains('extension_container'), true);
+    assert.equal(entry.classList.contains('list-group-item'), true);
+    assert.equal(entry.classList.contains('interactable'), true);
     assert.equal(entry.classList.contains('extensionsMenuExtensionButton'), false);
     assert.equal(icon.classList.contains('extensionsMenuExtensionButton'), true);
     entry.dispatchEvent({ type: 'click', preventDefault() {} });

@@ -53,6 +53,7 @@ export function createGlobalSettings() {
       worldInfo: true,
       worldInfoMode: 'all',
       worldInfoEntries: [],
+      worldInfoBooks: {},
       messageLimit: 24,
     },
     defaults: {

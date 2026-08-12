@@ -6,8 +6,9 @@ const { chromium } = require('playwright');
     executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH,
   });
   try {
+    const baseUrl = process.env.QA_BASE_URL ?? 'http://127.0.0.1:4173';
     const page = await browser.newPage({ viewport: { width: 420, height: 640 } });
-    await page.goto('http://127.0.0.1:4173/qa/preview.html');
+    await page.goto(`${baseUrl}/qa/preview.html`);
     await page.waitForLoadState('networkidle');
     await page.locator('#st-proactive-director.stpd-modal-open').waitFor({ state: 'attached' });
     await page.evaluate(() => { document.documentElement.style.transform = 'translateZ(0)'; });

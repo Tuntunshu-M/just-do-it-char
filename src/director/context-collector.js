@@ -29,7 +29,13 @@ function compactWorldInfo(entries, options) {
     ? new Set(options.worldInfoEntries ?? [])
     : null;
   return list.filter((entry) => !selected || selected.has(entry.id ?? entry.uid ?? entry.name))
-    .map((entry) => ({ id: entry.id ?? entry.uid ?? entry.name ?? '', name: entry.name ?? entry.comment ?? '', content: entry.content ?? entry.text ?? '' }));
+    .map((entry) => ({
+      id: entry.id ?? entry.uid ?? entry.name ?? '',
+      ...(entry.uid !== undefined ? { uid: entry.uid } : {}),
+      ...(entry.bookName ? { bookName: entry.bookName } : {}),
+      name: entry.name ?? entry.comment ?? '',
+      content: entry.content ?? entry.text ?? '',
+    }));
 }
 
 export async function collectDirectorContext(adapter, state, settings) {
@@ -54,9 +60,11 @@ export async function collectDirectorContext(adapter, state, settings) {
     evidence.push({ source: 'chatBehavior', priority: 4, value: state.historySummary });
   }
 
-  const rawWorldInfo = adapter.getWorldInfoEntriesAsync
-    ? await adapter.getWorldInfoEntriesAsync()
-    : adapter.getWorldInfoEntries?.() ?? host.worldInfo;
+  const rawWorldInfo = adapter.getSelectedWorldInfoEntries
+    ? await adapter.getSelectedWorldInfoEntries(options)
+    : adapter.getWorldInfoEntriesAsync
+      ? await adapter.getWorldInfoEntriesAsync()
+      : adapter.getWorldInfoEntries?.() ?? host.worldInfo;
   const worldInfoEntries = compactWorldInfo(rawWorldInfo, options);
   const personalityProfile = buildPersonalityProfile(card, worldInfoEntries, options);
   return {

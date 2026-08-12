@@ -13,6 +13,7 @@ import { createDirectorState } from './src/state/default-state.js';
 import { buildPersonalityProfile } from './src/director/personality-profile.js';
 import { correctCast, lockCast } from './src/cast/cast-manager.js';
 import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
+import { selectedWorldEntries } from './src/world-info/selection.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -41,9 +42,13 @@ export function mountWandEntry(openConsole) {
   const existing = document.querySelector('#stpd-menu-entry');
   if (existing) existing.__stpdOpenConsole = openConsole;
   else {
+    const container = document.createElement('div');
+    container.id = 'stpd-menu-container';
+    container.className = 'extension_container interactable';
+    container.tabIndex = 0;
     const entry = document.createElement('div');
     entry.id = 'stpd-menu-entry';
-    entry.className = 'stpd-menu-entry';
+    entry.className = 'stpd-menu-entry list-group-item flex-container flexGap5 interactable';
     const icon = document.createElement('span');
     icon.className = 'stpd-menu-icon fa-solid fa-clapperboard extensionsMenuExtensionButton';
     icon.setAttribute('aria-hidden', 'true');
@@ -66,10 +71,10 @@ export function mountWandEntry(openConsole) {
         openAfterMenuDismissal(entry);
       }
     });
-    const target = menu.querySelector('.extension_container') ?? menu;
-    target.append(entry);
+    container.append(entry);
+    menu.append(container);
   }
-  return () => document.querySelector('#stpd-menu-entry')?.remove();
+  return () => document.querySelector('#stpd-menu-container')?.remove();
 }
 
 export function initializeExtension() {
@@ -117,15 +122,26 @@ export function initializeExtension() {
   };
   rerender = () => consoleInstance?.render({ settings, state });
   const notice = (message) => hostAdapter.showSystemMessage?.(message);
-  let worldInfoCache = hostAdapter.getWorldInfoEntries();
-  const reloadWorldInfo = () => {
-    worldInfoCache = hostAdapter.getWorldInfoEntries();
-    return hostAdapter.getWorldInfoEntriesAsync?.().then((entries) => {
-      worldInfoCache = entries;
-      rerender();
-    }).catch((error) => console.warn('[导演时间] 世界书读取失败', error));
+  const worldBookCache = new Map();
+  const worldInfoNames = () => hostAdapter.getWorldInfoNames();
+  const loadWorldInfoBook = async (name) => {
+    if (!worldBookCache.has(name)) {
+      const pending = hostAdapter.loadWorldInfoBook(name).catch((error) => {
+        worldBookCache.delete(name);
+        throw error;
+      });
+      worldBookCache.set(name, pending);
+    }
+    return worldBookCache.get(name);
   };
-  reloadWorldInfo();
+  const cachedSelectedEntries = () => {
+    const books = [];
+    for (const [name, value] of worldBookCache) {
+      if (value && typeof value.then !== 'function') books.push(value);
+      else if (value?.name === name) books.push(value);
+    }
+    return selectedWorldEntries(books, settings.context.worldInfoBooks ?? {});
+  };
   const downloadSnapshot = (options) => {
     const snapshot = exportSnapshot(state, options);
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
@@ -160,16 +176,14 @@ export function initializeExtension() {
       confirm: (message) => hostAdapter.showConfirm(message),
       notice,
       listModels: (connection) => directorClient.listModels(connection),
-      worldInfoEntries: () => worldInfoCache,
+      worldInfoNames,
+      loadWorldInfoBook: async (name) => {
+        const book = await loadWorldInfoBook(name);
+        worldBookCache.set(name, book);
+        return book;
+      },
       personalityProfile: (contextSettings) => {
-        const entries = worldInfoCache;
-        const list = Array.isArray(entries) ? entries : Object.entries(entries).map(([id, entry]) => ({ id, ...entry }));
-        const selected = contextSettings?.worldInfoMode === 'selected'
-          ? new Set(contextSettings.worldInfoEntries ?? [])
-          : null;
-        const included = contextSettings?.worldInfo
-          ? list.filter((entry) => !selected || selected.has(entry.id ?? entry.uid ?? entry.name))
-          : [];
+        const included = contextSettings?.worldInfo ? cachedSelectedEntries() : [];
         return buildPersonalityProfile(hostAdapter.getCharacterData(), included, contextSettings);
       },
       exportSnapshot: downloadSnapshot,
@@ -246,7 +260,7 @@ export function initializeExtension() {
     refresh();
     if (isGroupChat()) state.status = 'paused';
     rerender();
-    reloadWorldInfo();
+    worldBookCache.clear();
     scheduleIdle();
   }));
   const editedEvent = eventTypes.MESSAGE_EDITED ?? 'MESSAGE_EDITED';

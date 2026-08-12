@@ -28,7 +28,7 @@ export function selectField(doc, label, value, options, onChange) {
 }
 
 export function lines(value) {
-  return String(value ?? '').split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+  return String(value ?? '').split(/[\n,，]/).map((item) => item.trim()).filter(Boolean);
 }
 
 export async function runAction(action, notice) {

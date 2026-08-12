@@ -35,10 +35,10 @@
       confirm: async () => true,
       listModels: async () => ['director-small', 'director-large'],
       testConnection: async () => true,
-      worldInfoEntries: () => [
-        { id: 'city', name: '城市设定' },
-        { id: 'relationships', name: '人物关系' },
-      ],
+      worldInfoNames: () => ['城市设定', '全局关系'],
+      loadWorldInfoBook: async (name) => ({ name, entries: name === '城市设定'
+        ? [{ id: 'shared', name: '街区与交通' }, { id: 'weather', name: '季节气候' }]
+        : [{ id: 'shared', name: '人物关系' }, { id: 'rules', name: '共同规则' }] }),
       personalityProfile: () => ({ name: '林澈', lines: ['做事周密，倾向提前规划。', '会主动照顾同伴的节奏。'], sources: ['角色卡', '城市设定'] }),
       onManualEvent() {},
       lockCast() {},

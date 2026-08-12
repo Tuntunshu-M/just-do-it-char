@@ -16,7 +16,13 @@ test('console module exports lifecycle contract', async () => {
   const module = await import('../../src/ui/director-console.js');
   assert.equal(typeof module.createDirectorConsole, 'function');
   const text = await source();
-  for (const tab of ['事件', '伏笔', '人物', '偏好', '连接', '外观', '副本']) assert.match(text, new RegExp(tab));
+  for (const tab of ['事件', '伏笔', '人物', '世界书', '偏好', '副本']) assert.match(text, new RegExp(tab));
+  const consoleText = await uiSource('director-console.js');
+  assert.match(consoleText, /class: 'stpd-settings'/);
+  assert.match(consoleText, /aria-label': '打开设置'/);
+  assert.doesNotMatch(consoleText, /fa-gear[^\n]*⚙/);
+  assert.match(consoleText, /SETTINGS_TABS/);
+  assert.doesNotMatch(consoleText, /\['connection', '连接'\].*TABS/);
   for (const contract of ['aria-selected', 'stpd-overlay', 'stpd-modal', 'stpd-modal-body', 'openModal', 'Escape']) assert.match(text, new RegExp(contract));
   assert.doesNotMatch(text, /event\.target === overlay/);
 });
@@ -35,7 +41,9 @@ test('console exposes independent API connection fields', async () => {
 
 test('console exposes director notes and selectable world-book controls', async () => {
   const text = await source();
-  for (const label of ['导演指令', '世界书', '选择条目', '人物侧写', '生成中']) assert.match(text, new RegExp(label));
+  for (const label of ['导演指令', '世界书', '全选', '全不选', '搜索世界书或条目', '人物侧写', '生成中']) assert.match(text, new RegExp(label));
+  assert.match(text, /loadWorldInfoBook/);
+  assert.match(text, /indeterminate/);
 });
 
 test('console gates the explicit erotic high-risk mode with a safeword', async () => {
@@ -45,6 +53,7 @@ test('console gates the explicit erotic high-risk mode with a safeword', async (
   assert.match(text, /services\.confirm/);
   assert.match(text, /cncEnabled/);
   assert.match(text, /safewords/);
+  assert.match(text, /支持中文逗号、英文逗号或换行分隔/);
 });
 
 test('console exposes selective snapshot migration', async () => {
@@ -52,6 +61,8 @@ test('console exposes selective snapshot migration', async () => {
   for (const label of ['事件框架', '角色专属历史', '原人格推断', '规则账本', '安全词与硬禁区', '导出副本', '导入副本', '撤销导入']) assert.match(text, new RegExp(label));
   assert.match(text, /exportSnapshot/);
   assert.match(text, /importSnapshot/);
+  assert.match(text, /applySnapshotMode/);
+  assert.match(text, /customizeSnapshotOption/);
 });
 
 test('console delegates views and dialogs to modular UI files', async () => {

@@ -18,6 +18,7 @@ test('global settings keep connection secrets outside chat state', () => {
   assert.equal(settings.connection.maxTokens, 2000);
   assert.equal(settings.connection.stream, false);
   assert.equal(settings.context.worldInfoMode, 'all');
+  assert.deepEqual(settings.context.worldInfoBooks, {});
   assert.deepEqual(settings.categories, {
     daily: { enabled: true, weight: 40 },
     crisis: { enabled: true, weight: 35 },

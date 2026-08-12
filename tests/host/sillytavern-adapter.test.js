@@ -97,3 +97,21 @@ test('adapter can asynchronously load selected external world-book entries', asy
   }));
   assert.deepEqual(await adapter.getWorldInfoEntriesAsync(), [{ id: '7', name: '规则', content: '不可回头' }]);
 });
+
+test('adapter lists every installed world book and loads normalized entries by name', async () => {
+  const loaded = [];
+  const adapter = createSillyTavernAdapter(() => ({
+    getWorldInfoNames: () => ['Global Lore', 'Other Story'],
+    loadWorldInfo: async (name) => {
+      loaded.push(name);
+      return { entries: { 7: { uid: 7, comment: `${name} rule`, content: name } } };
+    },
+  }));
+
+  assert.deepEqual(adapter.getWorldInfoNames(), ['Global Lore', 'Other Story']);
+  assert.deepEqual(await adapter.loadWorldInfoBook('Global Lore'), {
+    name: 'Global Lore',
+    entries: [{ id: '7', name: 'Global Lore rule', content: 'Global Lore', bookName: 'Global Lore' }],
+  });
+  assert.deepEqual(loaded, ['Global Lore']);
+});

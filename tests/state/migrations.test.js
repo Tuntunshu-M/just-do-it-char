@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { SCHEMA_VERSION } from '../../src/constants.js';
-import { migrateState } from '../../src/state/migrations.js';
+import { migrateGlobalSettings, migrateState } from '../../src/state/migrations.js';
 
 test('migration upgrades legacy state while preserving unknown fields', () => {
   const migrated = migrateState({
@@ -24,4 +24,11 @@ test('migration rejects state from a newer schema', () => {
     () => migrateState({ schemaVersion: SCHEMA_VERSION + 1 }),
     /newer schema/i,
   );
+});
+
+test('global migration adds an empty installed-world-book selection', () => {
+  const migrated = migrateGlobalSettings({ schemaVersion: 1, context: { worldInfo: true } });
+
+  assert.equal(migrated.schemaVersion, SCHEMA_VERSION);
+  assert.deepEqual(migrated.context.worldInfoBooks, {});
 });

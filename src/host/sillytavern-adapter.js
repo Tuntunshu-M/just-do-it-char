@@ -1,3 +1,5 @@
+import { selectedWorldEntries } from '../world-info/selection.js';
+
 function getHost(contextProvider) {
   return contextProvider?.() ?? {};
 }
@@ -15,6 +17,13 @@ function normalizeWorldEntries(entries) {
     name: entry.name ?? entry.comment ?? entry.keys?.join(', ') ?? `条目 ${index + 1}`,
     content: entry.content ?? entry.text ?? '',
   }));
+}
+
+function normalizeWorldBook(name, book) {
+  return {
+    name,
+    entries: normalizeWorldEntries(book?.entries ?? book).map((entry) => ({ ...entry, bookName: name })),
+  };
 }
 
 export function createSillyTavernAdapter(contextProvider) {
@@ -51,6 +60,27 @@ export function createSillyTavernAdapter(contextProvider) {
 
     getMessages() {
       return getHost(contextProvider).chat ?? [];
+    },
+
+    getWorldInfoNames() {
+      const host = getHost(contextProvider);
+      const names = hasFunction(host.getWorldInfoNames) ? host.getWorldInfoNames() : host.world_names;
+      return [...new Set((Array.isArray(names) ? names : []).filter(Boolean).map(String))];
+    },
+
+    async loadWorldInfoBook(name) {
+      const host = getHost(contextProvider);
+      if (!hasFunction(host.loadWorldInfo)) throw new Error('SillyTavern world-book loading capability is unavailable');
+      return normalizeWorldBook(name, await host.loadWorldInfo(name));
+    },
+
+    async getSelectedWorldInfoEntries(options = {}) {
+      if (!options.worldInfo) return [];
+      const selection = options.worldInfoBooks ?? {};
+      const installed = new Set(adapter.getWorldInfoNames());
+      const names = Object.keys(selection).filter((name) => installed.has(name));
+      const books = await Promise.all(names.map((name) => adapter.loadWorldInfoBook(name)));
+      return selectedWorldEntries(books, selection);
     },
 
     getWorldInfoEntries() {

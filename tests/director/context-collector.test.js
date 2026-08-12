@@ -37,3 +37,26 @@ test('single-character context includes selected world-book entries and director
   assert.deepEqual(context.worldInfoEntries, [{ id: 'a', name: '旅馆', content: 'hotel rules' }]);
   assert.match(JSON.stringify(context.personalityEvidence), /gentle/);
 });
+
+test('collector uses resolved installed-world-book entries without collapsing duplicate uids', async () => {
+  const adapter = {
+    getCharacterData: () => ({ name: 'A' }),
+    getMessages: () => [],
+    getSelectedWorldInfoEntries: async () => [
+      { id: 'Book A::7', uid: '7', bookName: 'Book A', name: 'Rule A', content: 'alpha' },
+      { id: 'Book B::7', uid: '7', bookName: 'Book B', name: 'Rule B', content: 'beta' },
+    ],
+    getContext: () => ({ chatMetadata: {} }),
+  };
+
+  const context = await collectDirectorContext(adapter, {
+    historySummary: '', directorNotes: '', cast: { mode: 'single' }, preference: {}, sceneSafety: {}, activeEvent: null, foreshadowing: [], ruleLedger: {},
+  }, {
+    genre: { mode: 'auto' }, context: { card: true, worldInfo: true, worldInfoBooks: { 'Book A': { all: true, entries: [] }, 'Book B': { all: true, entries: [] } }, messageLimit: 10 },
+  });
+
+  assert.deepEqual(context.worldInfoEntries.map(({ id, bookName }) => ({ id, bookName })), [
+    { id: 'Book A::7', bookName: 'Book A' },
+    { id: 'Book B::7', bookName: 'Book B' },
+  ]);
+});
