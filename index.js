@@ -10,6 +10,9 @@ import { createScheduler } from './src/director/scheduler.js';
 import { createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
+import { buildPersonalityProfile } from './src/director/personality-profile.js';
+import { correctCast, lockCast } from './src/cast/cast-manager.js';
+import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -19,34 +22,81 @@ export const hostAdapter = createSillyTavernAdapter(resolveContext);
 let consoleInstance;
 let runtime;
 
+function mountWandEntry(openConsole) {
+  const menu = document.querySelector('#extensionsMenu');
+  if (!menu) return () => {};
+  const existing = document.querySelector('#stpd-menu-entry');
+  if (existing) existing.onclick = openConsole;
+  else {
+    const entry = document.createElement('div');
+    entry.id = 'stpd-menu-entry';
+    entry.className = 'extensionsMenuExtensionButton stpd-menu-entry fa-solid fa-wand-magic-sparkles';
+    entry.title = '打开主动导演';
+    entry.setAttribute('aria-label', '打开主动导演');
+    entry.setAttribute('role', 'button');
+    entry.tabIndex = 0;
+    entry.onclick = openConsole;
+    entry.onkeydown = (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openConsole(); } };
+    const target = menu.querySelector('.extension_container') ?? menu;
+    target.append(entry);
+  }
+  return () => document.querySelector('#stpd-menu-entry')?.remove();
+}
+
 export function initializeExtension() {
   const capabilities = hostAdapter.capabilities;
-  const mountPoint = document.querySelector('#extensions_settings, #extensions-settings');
-  if (!mountPoint || consoleInstance) return capabilities;
+  if (consoleInstance || typeof document === 'undefined') return capabilities;
   const root = document.createElement('div');
-  mountPoint.append(root);
+  document.body.append(root);
   const store = createStore(hostAdapter);
-  const settings = store.loadGlobal();
-  const chatKey = hostAdapter.getCurrentChatKey();
-  const state = chatKey ? store.loadChat(chatKey) : createDirectorState(null);
-  state.preference.userAgency = settings.defaults.userAgency;
+  let settings = store.loadGlobal();
+  let chatKey = hostAdapter.getCurrentChatKey();
+  let state = chatKey ? store.loadChat(chatKey) : createDirectorState(null);
   const engine = createEventEngine(store);
   const theme = createThemeManager(document, { save: async (value) => {
     settings.theme = value;
     await store.saveGlobal(settings);
   } });
   theme.preview(settings.theme);
+  const directorClient = createDirectorClient({ adapter: hostAdapter });
+  let rerender = () => {};
   const pipeline = createDirectorPipeline({
     adapter: hostAdapter,
     store,
-    client: createDirectorClient({ adapter: hostAdapter }),
+    client: directorClient,
     policy: { evaluatePolicy },
     engine,
     collector: collectDirectorContext,
     scheduler: createScheduler(),
+    personality: {
+      validate: (result, context) => {
+        const members = context.cast?.members ?? [];
+        if (!members.length || !(result.actions?.length)) return { allowed: true };
+        const ids = new Set(members.map((member) => member.id));
+        const invalid = result.actions.filter((action) => !ids.has(action.characterId) || !action.evidence?.length);
+        return { allowed: invalid.length === 0, reasons: invalid.map((action) => `人物 ${action.characterId} 缺少自身证据`) };
+      },
+    },
+    onProgress: (nextState) => { state = nextState; rerender(); },
   });
-  const rerender = () => consoleInstance?.render({ settings, state });
+  const refresh = () => {
+    settings = store.loadGlobal();
+    chatKey = hostAdapter.getCurrentChatKey();
+    if (chatKey) state = store.loadChat(chatKey);
+    else state = createDirectorState(null);
+    rerender();
+  };
+  rerender = () => consoleInstance?.render({ settings, state });
   const notice = (message) => hostAdapter.showSystemMessage?.(message);
+  let worldInfoCache = hostAdapter.getWorldInfoEntries();
+  const reloadWorldInfo = () => {
+    worldInfoCache = hostAdapter.getWorldInfoEntries();
+    return hostAdapter.getWorldInfoEntriesAsync?.().then((entries) => {
+      worldInfoCache = entries;
+      rerender();
+    }).catch((error) => console.warn('[主动导演] 世界书读取失败', error));
+  };
+  reloadWorldInfo();
   const downloadSnapshot = (options) => {
     const snapshot = exportSnapshot(state, options);
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
@@ -57,16 +107,16 @@ export function initializeExtension() {
     link.click();
     URL.revokeObjectURL(url);
   };
-  const importSnapshotFile = async (file, options) => {
+  const importSnapshotFile = async (file, options, container) => {
     try {
       const snapshot = JSON.parse(await file.text());
       const preview = previewImport(snapshot, state, options);
-      const accepted = await hostAdapter.showConfirm?.(`将导入所选副本内容。${preview.warnings?.join(' ') ?? ''}`);
-      if (!accepted) return;
-      const imported = applyImport(preview);
-      Object.assign(state, imported);
-      await store.saveChat(state);
-      rerender();
+      showSnapshotImportDialog(container, preview, async (acceptedPreview) => {
+        const imported = applyImport(acceptedPreview);
+        Object.assign(state, imported);
+        await store.saveChat(state);
+        refresh();
+      });
     } catch (error) {
       console.error('[主动导演] snapshot import failed', error);
       notice?.('副本导入失败，请检查 JSON 文件。');
@@ -80,6 +130,19 @@ export function initializeExtension() {
       previewTheme: (value) => theme.preview(value),
       confirm: (message) => hostAdapter.showConfirm(message),
       notice,
+      listModels: (connection) => directorClient.listModels(connection),
+      worldInfoEntries: () => worldInfoCache,
+      personalityProfile: (contextSettings) => {
+        const entries = worldInfoCache;
+        const list = Array.isArray(entries) ? entries : Object.entries(entries).map(([id, entry]) => ({ id, ...entry }));
+        const selected = contextSettings?.worldInfoMode === 'selected'
+          ? new Set(contextSettings.worldInfoEntries ?? [])
+          : null;
+        const included = contextSettings?.worldInfo
+          ? list.filter((entry) => !selected || selected.has(entry.id ?? entry.uid ?? entry.name))
+          : [];
+        return buildPersonalityProfile(hostAdapter.getCharacterData(), included, contextSettings);
+      },
       exportSnapshot: downloadSnapshot,
       importSnapshot: importSnapshotFile,
       undoImport: async () => {
@@ -87,32 +150,83 @@ export function initializeExtension() {
         if (!previous) return;
         Object.assign(state, previous);
         await store.saveChat(state);
-        rerender();
+        refresh();
       },
       stop: async () => {
         if (chatKey) await engine.stop(chatKey, state.characterFingerprint);
-        state.status = 'stopped'; state.activeEvent = null; rerender();
+        state.status = 'stopped'; state.activeEvent = null;
+        state.generation = { ...state.generation, phase: 'idle', finishedAt: new Date().toISOString() };
+        refresh();
       },
       onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
+      pauseEvent: async () => { await engine.pause(chatKey, state.characterFingerprint); refresh(); },
+      resumeEvent: async () => { await engine.resume(chatKey, state.characterFingerprint, { source: 'manual' }); refresh(); },
+      rerollEvent: () => pipeline.manualCreate(`重新抽取当前事件：${state.activeEvent?.title ?? ''}`, true),
+      changeDirection: async (direction) => { await engine.changeDirection(chatKey, state.characterFingerprint, { direction }); refresh(); },
+      lockCast: async (locked) => { state.cast = lockCast(state.cast, locked); await store.saveChat(state); refresh(); },
+      correctCast: async (correction) => { state.cast = correctCast(state.cast, correction); await store.saveChat(state); refresh(); },
+      isGroupChat: () => Boolean(hostAdapter.getContext().groupId ?? hostAdapter.getContext().group_id),
+      testConnection: (connection) => directorClient.testConnection(connection),
+      saveTheme: async (value) => { theme.preview(value); await theme.save(); settings.theme = value; await store.saveGlobal(settings); refresh(); },
+      disableTheme: async () => { theme.disable(); settings.theme.enabled = false; await store.saveGlobal(settings); refresh(); },
+      rollbackTheme: () => theme.rollback(),
+      resetTheme: async () => { theme.reset(); settings.theme = { enabled: false, allowGlobalCss: false, variables: {}, css: '' }; await store.saveGlobal(settings); refresh(); },
+      exportTheme: () => {
+        const blob = new Blob([JSON.stringify(theme.exportTheme(), null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'proactive-director-theme.json'; link.click(); URL.revokeObjectURL(url);
+      },
+      importTheme: async (file) => { try { theme.importTheme(JSON.parse(await file.text())); settings.theme = theme.exportTheme().theme; await store.saveGlobal(settings); refresh(); } catch (error) { notice(`主题导入失败：${error.message}`); } },
     },
   });
   consoleInstance.mount({ settings, state });
+  const menuCleanup = mountWandEntry(() => consoleInstance?.open());
+  const menuObserver = new MutationObserver(() => mountWandEntry(() => consoleInstance?.open()));
+  const menuParent = document.body;
+  menuObserver.observe(menuParent, { childList: true, subtree: true });
   const host = hostAdapter.getContext();
   const eventTypes = host.event_types ?? globalThis.event_types ?? {};
   const unsubscribers = [];
-  if (!host.groupId && !host.group_id && chatKey) {
-    const userEvent = eventTypes.USER_MESSAGE_RENDERED ?? 'USER_MESSAGE_RENDERED';
-    unsubscribers.push(hostAdapter.on(userEvent, (messageIndex) => {
-      const message = hostAdapter.getMessages()[messageIndex] ?? hostAdapter.getMessages().at(-1);
-      pipeline.handleUserMessage(message?.mes ?? '').catch((error) => console.error('[主动导演]', error));
-    }));
-  } else if (host.groupId || host.group_id) {
+  let idleTimer = null;
+  const isGroupChat = () => {
+    const current = hostAdapter.getContext();
+    return Boolean(current.groupId ?? current.group_id);
+  };
+  const scheduleIdle = () => {
+    clearTimeout(idleTimer);
+    if (!settings.trigger.idleEnabled || !chatKey || isGroupChat()) return;
+    idleTimer = setTimeout(() => pipeline.handleIdle({ hidden: document.hidden, userTyping: false }).catch((error) => console.error('[主动导演]', error)), Math.max(1, settings.trigger.idleMinutes) * 60000);
+  };
+  const composer = document.querySelector('#send_textarea');
+  const onTyping = () => scheduleIdle();
+  composer?.addEventListener('input', onTyping);
+  scheduleIdle();
+  const userEvent = eventTypes.USER_MESSAGE_RENDERED ?? 'USER_MESSAGE_RENDERED';
+  unsubscribers.push(hostAdapter.on(userEvent, (messageIndex) => {
+    if (!chatKey || isGroupChat()) return;
+    const message = hostAdapter.getMessages()[messageIndex] ?? hostAdapter.getMessages().at(-1);
+    pipeline.handleUserMessage(message?.mes ?? '').catch((error) => console.error('[主动导演]', error));
+    scheduleIdle();
+  }));
+  if (isGroupChat()) {
     state.status = 'paused';
     rerender();
   }
   const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
-  unsubscribers.push(hostAdapter.on(chatEvent, () => pipeline.cancel()));
-  runtime = { pipeline, theme, destroy() { pipeline.cancel(); unsubscribers.forEach((off) => off()); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
+  unsubscribers.push(hostAdapter.on(chatEvent, () => {
+    pipeline.cancel();
+    refresh();
+    if (isGroupChat()) state.status = 'paused';
+    rerender();
+    reloadWorldInfo();
+    scheduleIdle();
+  }));
+  const editedEvent = eventTypes.MESSAGE_EDITED ?? 'MESSAGE_EDITED';
+  unsubscribers.push(hostAdapter.on(editedEvent, async (messageIndex) => {
+    const message = hostAdapter.getMessages()[messageIndex];
+    if (message && chatKey) await engine.reconcileEditedMessage(chatKey, state.characterFingerprint, { messageId: messageIndex, text: message.mes ?? '' });
+    refresh();
+  }));
+  runtime = { pipeline, theme, destroy() { pipeline.cancel(); clearTimeout(idleTimer); composer?.removeEventListener('input', onTyping); unsubscribers.forEach((off) => off()); menuObserver.disconnect(); menuCleanup(); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
   return capabilities;
 }
 

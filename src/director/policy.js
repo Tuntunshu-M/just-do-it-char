@@ -40,5 +40,7 @@ export function evaluatePolicy({ proposal, state, settings, userText = '', stopR
     if (permission === 'forbidden') return { allowed: false, action: 'block', reasons: [`Consequence is forbidden: ${consequence}`] };
     if (permission === 'ask') return { allowed: false, action: 'ask', reasons: [`Consequence requires confirmation: ${consequence}`] };
   }
-  return { allowed: true, action: 'allow', reasons: [], userAgency: state.preference?.userAgency ?? settings.defaults?.userAgency ?? 80 };
+  const userAgency = state.preference?.userAgency ?? settings.defaults?.userAgency ?? 80;
+  const userAgencyLevel = userAgency >= 67 ? 'user-led' : userAgency >= 34 ? 'shared' : 'character-led';
+  return { allowed: true, action: 'allow', reasons: [], userAgency, userAgencyLevel };
 }

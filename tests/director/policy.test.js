@@ -23,3 +23,21 @@ test('safeword stops event without exposing the matched word', () => {
   assert.equal(state.activeEvent, null);
   assert.equal(state.pendingTransaction, null);
 });
+
+test('all planned major consequences require explicit permissions', () => {
+ const consequences=['death','permanentDisability','pregnancy','childbirth','seriousIllness','longDisappearance','permanentBreakup','majorPropertyChange'];
+ const state={preference:{consequencePermissions:{}},sceneSafety:{}};
+ const settings={categories:{crisis:{enabled:true}},defaults:{consequencePermissions:{}}};
+ for(const consequence of consequences){
+  const result=evaluatePolicy({proposal:{category:'crisis',consequences:[consequence]},state,settings});
+  assert.equal(result.action,'ask',consequence);
+ }
+});
+
+test('user agency maps to observe, shared, and character-led levels', () => {
+ const settings={categories:{daily:{enabled:true}},defaults:{}};
+ for(const [value,level] of [[90,'user-led'],[50,'shared'],[10,'character-led']]){
+  const result=evaluatePolicy({proposal:{category:'daily'},state:{preference:{userAgency:value},sceneSafety:{}},settings});
+  assert.equal(result.userAgencyLevel,level);
+ }
+});

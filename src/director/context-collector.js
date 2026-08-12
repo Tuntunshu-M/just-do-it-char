@@ -1,4 +1,5 @@
 import { resolveGenre } from './world-genre.js';
+import { buildPersonalityProfile } from './personality-profile.js';
 
 function compactCard(card) {
   if (!card) return null;
@@ -21,6 +22,16 @@ function compactMessages(messages, limit) {
   }));
 }
 
+function compactWorldInfo(entries, options) {
+  if (!options.worldInfo) return [];
+  const list = Array.isArray(entries) ? entries : Object.entries(entries ?? {}).map(([id, entry]) => ({ id, ...entry }));
+  const selected = options.worldInfoMode === 'selected'
+    ? new Set(options.worldInfoEntries ?? [])
+    : null;
+  return list.filter((entry) => !selected || selected.has(entry.id ?? entry.uid ?? entry.name))
+    .map((entry) => ({ id: entry.id ?? entry.uid ?? entry.name ?? '', name: entry.name ?? entry.comment ?? '', content: entry.content ?? entry.text ?? '' }));
+}
+
 export async function collectDirectorContext(adapter, state, settings) {
   const host = adapter.getContext?.() ?? {};
   const card = adapter.getCharacterData?.() ?? null;
@@ -29,8 +40,9 @@ export async function collectDirectorContext(adapter, state, settings) {
   const messages = compactMessages(allMessages, options.messageLimit ?? 24);
   const evidence = [];
 
-  if (options.directorNotes && host.chatMetadata?.proactive_director_notes) {
-    evidence.push({ source: 'directorNotes', priority: 1, value: host.chatMetadata.proactive_director_notes });
+  const directorNotes = state.directorNotes ?? host.chatMetadata?.proactive_director_notes ?? '';
+  if (options.directorNotes && directorNotes) {
+    evidence.push({ source: 'directorNotes', priority: 1, value: directorNotes });
   }
   if (options.card && card) {
     evidence.push({ source: 'card', priority: 2, value: compactCard(card) });
@@ -42,11 +54,18 @@ export async function collectDirectorContext(adapter, state, settings) {
     evidence.push({ source: 'chatBehavior', priority: 4, value: state.historySummary });
   }
 
+  const rawWorldInfo = adapter.getWorldInfoEntriesAsync
+    ? await adapter.getWorldInfoEntriesAsync()
+    : adapter.getWorldInfoEntries?.() ?? host.worldInfo;
+  const worldInfoEntries = compactWorldInfo(rawWorldInfo, options);
+  const personalityProfile = buildPersonalityProfile(card, worldInfoEntries, options);
   return {
     chatKey: state.chatKey,
     characterFingerprint: state.characterFingerprint,
     genre: resolveGenre(settings.genre, card, messages),
     personalityEvidence: evidence,
+    personalityProfile,
+    directorNotes,
     messages,
     cast: state.cast,
     activeEvent: state.activeEvent,
@@ -54,6 +73,7 @@ export async function collectDirectorContext(adapter, state, settings) {
     ruleLedger: state.ruleLedger,
     preferences: state.preference,
     sceneSafety: state.sceneSafety,
-    worldInfo: options.worldInfo ? (host.worldInfo ?? null) : null,
+    worldInfo: worldInfoEntries,
+    worldInfoEntries,
   };
 }

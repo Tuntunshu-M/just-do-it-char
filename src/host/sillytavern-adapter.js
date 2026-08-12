@@ -6,6 +6,17 @@ function hasFunction(value) {
   return typeof value === 'function';
 }
 
+function normalizeWorldEntries(entries) {
+  const list = Array.isArray(entries)
+    ? entries
+    : Object.entries(entries ?? {}).map(([id, entry]) => ({ id, ...entry }));
+  return list.map((entry, index) => ({
+    id: String(entry.id ?? entry.uid ?? index),
+    name: entry.name ?? entry.comment ?? entry.keys?.join(', ') ?? `条目 ${index + 1}`,
+    content: entry.content ?? entry.text ?? '',
+  }));
+}
+
 export function createSillyTavernAdapter(contextProvider) {
   const adapter = {
     get capabilities() {
@@ -18,7 +29,7 @@ export function createSillyTavernAdapter(contextProvider) {
         promptInjection: hasFunction(host.setExtensionPrompt),
         generation: hasFunction(host.generate) && hasFunction(host.generateRaw),
         settings: hasFunction(host.saveSettingsDebounced),
-        chatState: hasFunction(host.saveMetadata),
+        chatState: hasFunction(host.saveMetadataDebounced) || hasFunction(host.saveMetadata),
         confirmation: hasFunction(host.Popup?.show?.confirm) || hasFunction(host.popup?.confirm),
         events: hasFunction(host.eventSource?.on),
       };
@@ -40,6 +51,44 @@ export function createSillyTavernAdapter(contextProvider) {
 
     getMessages() {
       return getHost(contextProvider).chat ?? [];
+    },
+
+    getWorldInfoEntries() {
+      const host = getHost(contextProvider);
+      const direct = host.worldInfoEntries ?? host.worldInfo?.entries;
+      if (Array.isArray(direct) || (direct && typeof direct === 'object')) return direct;
+      const cardEntries = host.characters?.[host.characterId]?.data?.character_book?.entries;
+      if (Array.isArray(cardEntries)) {
+        return cardEntries.map((entry, index) => ({
+          id: entry.id ?? entry.uid ?? String(index),
+          name: entry.name ?? entry.comment ?? entry.keys?.join(', ') ?? `条目 ${index + 1}`,
+          content: entry.content ?? entry.text ?? '',
+        }));
+      }
+      return [];
+    },
+
+    async getWorldInfoEntriesAsync() {
+      const immediate = adapter.getWorldInfoEntries();
+      const host = getHost(contextProvider);
+      if (!hasFunction(host.loadWorldInfo)) return normalizeWorldEntries(immediate);
+      const names = [...new Set([
+        ...(Array.isArray(host.selected_world_info) ? host.selected_world_info : [host.selected_world_info]),
+        ...(Array.isArray(host.world_info) ? host.world_info : []),
+      ].filter(Boolean))];
+      if (!names.length) return normalizeWorldEntries(immediate);
+      const loaded = await Promise.all(names.map((name) => host.loadWorldInfo(name)));
+      const external = loaded.flatMap((book) => normalizeWorldEntries(book?.entries ?? book));
+      const merged = new Map([...normalizeWorldEntries(immediate), ...external].map((entry) => [entry.id, entry]));
+      return [...merged.values()];
+    },
+
+    showSystemMessage(message) {
+      const host = getHost(contextProvider);
+      if (hasFunction(host.showSystemMessage)) return host.showSystemMessage(message);
+      if (typeof globalThis.toastr?.info === 'function') return globalThis.toastr.info(message);
+      if (typeof globalThis.toastr?.warning === 'function') return globalThis.toastr.warning(message);
+      return undefined;
     },
 
     injectPrompt(...args) {
@@ -65,7 +114,8 @@ export function createSillyTavernAdapter(contextProvider) {
     },
 
     saveChatState() {
-      return getHost(contextProvider).saveMetadata?.();
+      const host = getHost(contextProvider);
+      return (host.saveMetadataDebounced ?? host.saveMetadata)?.();
     },
 
     showConfirm(message) {
