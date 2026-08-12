@@ -9,3 +9,22 @@ test('theme scoping handles supports and keyframes without prefixing at-rule bod
  assert.match(css, /@keyframes pulse/);
  assert.doesNotMatch(css, /#st-proactive-director from/);
 });
+
+test('theme rollback returns the restored theme for settings synchronization', async () => {
+ const nodes=[];
+ const doc={head:{append:nodes.push.bind(nodes)},createElement:()=>({textContent:'',remove(){}})};
+ const m=createThemeManager(doc,{save:async()=>{}});
+ m.preview({enabled:true,css:'.a { color: red; }'});
+ await m.save();
+ m.preview({enabled:true,css:'.a { color: blue; }'});
+ assert.deepEqual(m.rollback(),{enabled:true,allowGlobalCss:false,variables:{},css:'.a { color: red; }'});
+});
+
+test('theme load establishes the persisted rollback baseline', () => {
+ const nodes=[];
+ const doc={head:{append:nodes.push.bind(nodes)},createElement:()=>({textContent:'',remove(){}})};
+ const m=createThemeManager(doc,{save:async()=>{}});
+ m.load({enabled:true,allowGlobalCss:false,variables:{},css:'.saved { color: green; }'});
+ m.preview({enabled:true,css:'.preview { color: blue; }'});
+ assert.deepEqual(m.rollback(),{enabled:true,allowGlobalCss:false,variables:{},css:'.saved { color: green; }'});
+});

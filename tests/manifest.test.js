@@ -17,9 +17,9 @@ test('manifest exposes the files and metadata required for URL installation', as
   assert.equal(typeof manifest.auto_update, 'boolean');
 });
 
-test('manifest advertises the reliable Director Time click release', async () => {
+test('manifest advertises the host-menu dismissal release', async () => {
   const raw = await readFile(new URL('../manifest.json', import.meta.url), 'utf8');
   const manifest = JSON.parse(raw);
 
-  assert.equal(manifest.version, '0.2.2');
+  assert.equal(manifest.version, '0.2.3');
 });

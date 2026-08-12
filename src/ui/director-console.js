@@ -1,4 +1,4 @@
-import { el } from './dom.js';
+import { el, runAction } from './dom.js';
 import { renderEventView } from './views/event.js';
 import { renderCastView } from './views/cast.js';
 import { renderPreferencesView } from './views/preferences.js';
@@ -23,8 +23,8 @@ export function createDirectorConsole({ root, services }) {
   let open = false;
   let escapeHandler;
   const snapshotOptions = { mode: 'custom', eventFramework: true, history: false, personality: false, rules: false, safety: false };
-  const saveSettings = () => services.saveSettings?.(settings);
-  const saveState = () => services.saveState?.(state);
+  const saveSettings = () => runAction(() => services.saveSettings?.(settings), services.notice);
+  const saveState = () => runAction(() => services.saveState?.(state), services.notice);
 
   function renderView(body) {
     const shared = { body, settings, state, services, saveSettings, saveState, rerender: render };
@@ -50,7 +50,7 @@ export function createDirectorConsole({ root, services }) {
     const phaseLabels = { idle: '待机', collecting: '采集中', generating: '生成中', streaming: '流式生成中', injecting: '注入中', completed: '已完成', failed: '失败' };
     header.append(el(doc, 'strong', { class: 'stpd-title' }, '导演时间'), el(doc, 'span', { class: `stpd-status stpd-status-${phase}` }, phaseLabels[phase] ?? '待机'));
     const stop = el(doc, 'button', { type: 'button', class: 'stpd-stop', 'aria-label': '立即停止导演', title: '立即停止' }, '■');
-    stop.onclick = () => services.stop?.();
+    stop.onclick = () => runAction(() => services.stop?.(), services.notice);
     const closeButton = el(doc, 'button', { type: 'button', class: 'stpd-close', 'aria-label': '关闭导演时间', title: '关闭' }, '×');
     closeButton.onclick = close;
     header.append(stop, closeButton);

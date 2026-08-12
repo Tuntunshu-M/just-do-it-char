@@ -22,6 +22,19 @@ export const hostAdapter = createSillyTavernAdapter(resolveContext);
 let consoleInstance;
 let runtime;
 
+function openAfterMenuDismissal(entry) {
+  let opened = false;
+  const open = () => {
+    if (opened) return;
+    opened = true;
+    entry.__stpdOpenConsole?.();
+  };
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(open));
+  }
+  setTimeout(open, 80);
+}
+
 function mountWandEntry(openConsole) {
   const menu = document.querySelector('#extensionsMenu');
   if (!menu) return () => {};
@@ -45,12 +58,12 @@ function mountWandEntry(openConsole) {
     entry.__stpdOpenConsole = openConsole;
     entry.addEventListener('click', (event) => {
       event.preventDefault();
-      queueMicrotask(() => entry.__stpdOpenConsole?.());
+      openAfterMenuDismissal(entry);
     });
     entry.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        queueMicrotask(() => entry.__stpdOpenConsole?.());
+        openAfterMenuDismissal(entry);
       }
     });
     const target = menu.querySelector('.extension_container') ?? menu;
@@ -73,7 +86,7 @@ export function initializeExtension() {
     settings.theme = value;
     await store.saveGlobal(settings);
   } });
-  theme.preview(settings.theme);
+  theme.load(settings.theme);
   const directorClient = createDirectorClient({ adapter: hostAdapter });
   let rerender = () => {};
   const pipeline = createDirectorPipeline({
@@ -185,7 +198,7 @@ export function initializeExtension() {
       testConnection: (connection) => directorClient.testConnection(connection),
       saveTheme: async (value) => { theme.preview(value); await theme.save(); settings.theme = value; await store.saveGlobal(settings); refresh(); },
       disableTheme: async () => { theme.disable(); settings.theme.enabled = false; await store.saveGlobal(settings); refresh(); },
-      rollbackTheme: () => theme.rollback(),
+      rollbackTheme: async () => { settings.theme = theme.rollback(); await store.saveGlobal(settings); refresh(); },
       resetTheme: async () => { theme.reset(); settings.theme = { enabled: false, allowGlobalCss: false, variables: {}, css: '' }; await store.saveGlobal(settings); refresh(); },
       exportTheme: () => {
         const blob = new Blob([JSON.stringify(theme.exportTheme(), null, 2)], { type: 'application/json' });

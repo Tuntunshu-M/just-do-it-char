@@ -75,3 +75,10 @@ test('snapshot import dialog renders summary and warnings before apply', async (
   for (const label of ['导入预览', '活动事件', '伏笔', '人物', '安全设置', '确认导入']) assert.match(text, new RegExp(label));
   assert.match(text, /preview\.warnings/);
 });
+
+test('async UI actions surface rejected operations instead of becoming silent no-ops', async () => {
+  const { runAction } = await import('../../src/ui/dom.js');
+  const notices = [];
+  await runAction(async () => { throw new Error('network unavailable'); }, (message) => notices.push(message));
+  assert.deepEqual(notices, ['network unavailable']);
+});

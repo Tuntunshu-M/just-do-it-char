@@ -1,4 +1,4 @@
-import { el, field } from '../dom.js';
+import { el, field, runAction } from '../dom.js';
 import { showManualEventPreview } from '../dialogs/manual-event.js';
 import { showDirectionDialog } from '../dialogs/change-direction.js';
 
@@ -10,18 +10,18 @@ export function renderEventView({ body, state, services, saveState }) {
   const create = el(doc, 'button', { type: 'button' }, '创建事件');
   create.onclick = () => {
     const value = idea.value.trim();
-    if (value) showManualEventPreview(body, { idea: value, expand: expand.checked, onConfirm: () => services.onManualEvent?.(value, expand.checked) });
+    if (value) showManualEventPreview(body, { idea: value, expand: expand.checked, onConfirm: () => runAction(() => services.onManualEvent?.(value, expand.checked), services.notice) });
   };
   body.append(field(doc, '事件想法', idea), field(doc, '让 AI 扩展', expand), create);
   if (state.activeEvent) {
     const actions = el(doc, 'div', { class: 'stpd-actions' });
     const paused = state.status === 'paused';
     const pause = el(doc, 'button', { type: 'button' }, paused ? '恢复事件' : '暂停事件');
-    pause.onclick = () => paused ? services.resumeEvent?.() : services.pauseEvent?.();
+    pause.onclick = () => runAction(() => paused ? services.resumeEvent?.() : services.pauseEvent?.(), services.notice);
     const reroll = el(doc, 'button', { type: 'button' }, '重新抽取');
-    reroll.onclick = () => services.rerollEvent?.();
+    reroll.onclick = () => runAction(() => services.rerollEvent?.(), services.notice);
     const direction = el(doc, 'button', { type: 'button' }, '改变方向');
-    direction.onclick = () => showDirectionDialog(body, state.activeEvent, (value) => services.changeDirection?.(value));
+    direction.onclick = () => showDirectionDialog(body, state.activeEvent, (value) => runAction(() => services.changeDirection?.(value), services.notice));
     actions.append(pause, reroll, direction); body.append(actions);
   }
   const notes = el(doc, 'textarea', { 'aria-label': '导演指令', rows: '4', placeholder: '告诉导演本聊天要遵守的长期指令' });

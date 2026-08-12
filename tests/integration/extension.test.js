@@ -46,5 +46,7 @@ test('native menu click opens the console after the host menu dismisses', async 
   const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
 
   assert.match(source, /entry\.addEventListener\('click',\s*\(event\) => \{/);
-  assert.match(source, /event\.preventDefault\(\);\s*queueMicrotask\(\(\) => entry\.__stpdOpenConsole\?\.\(\)\);/);
+  assert.match(source, /event\.preventDefault\(\);\s*openAfterMenuDismissal\(entry\);/);
+  assert.match(source, /requestAnimationFrame\(\(\) => requestAnimationFrame\(open\)\)/);
+  assert.doesNotMatch(source, /queueMicrotask/);
 });
