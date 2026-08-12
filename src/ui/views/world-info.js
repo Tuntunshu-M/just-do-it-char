@@ -4,7 +4,7 @@ import { bookSelectionState, setBookSelected, setEntrySelected, worldEntryKey } 
 const viewStates = new WeakMap();
 
 function stateFor(settings) {
-  if (!viewStates.has(settings)) viewStates.set(settings, { expanded: new Set(), books: new Map(), loading: new Set(), errors: new Map(), search: '', busy: false });
+  if (!viewStates.has(settings)) viewStates.set(settings, { expanded: new Set(), books: new Map(), loading: new Set(), errors: new Map(), search: '', busy: false, scrollTop: 0, body: null });
   return viewStates.get(settings);
 }
 
@@ -15,16 +15,22 @@ function entryLabel(entry) {
 export function renderWorldInfoView({ body, settings, services, saveSettings, rerender }) {
   const doc = body.ownerDocument;
   const ui = stateFor(settings);
+  ui.body = body;
+  const rerenderInPlace = () => {
+    ui.scrollTop = ui.body?.scrollTop ?? ui.scrollTop;
+    rerender();
+  };
+  const restoreScroll = () => { body.scrollTop = ui.scrollTop; };
   const selection = settings.context.worldInfoBooks ??= {};
   const names = services.worldInfoNames?.() ?? [];
   const enabled = el(doc, 'input', { type: 'checkbox', checked: settings.context.worldInfo });
-  enabled.onchange = () => { settings.context.worldInfo = enabled.checked; saveSettings(); rerender(); };
+  enabled.onchange = () => { settings.context.worldInfo = enabled.checked; saveSettings(); rerenderInPlace(); };
   body.append(field(doc, '读取世界书', enabled));
-  if (!settings.context.worldInfo) return;
+  if (!settings.context.worldInfo) { restoreScroll(); return; }
 
   const loadBook = async (name) => {
     if (ui.books.has(name)) return ui.books.get(name);
-    ui.loading.add(name); ui.errors.delete(name); rerender();
+    ui.loading.add(name); ui.errors.delete(name); rerenderInPlace();
     try {
       const book = await services.loadWorldInfoBook(name);
       ui.books.set(name, book);
@@ -33,23 +39,23 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
       ui.errors.set(name, error?.message || '读取失败');
       throw error;
     } finally {
-      ui.loading.delete(name); rerender();
+      ui.loading.delete(name); rerenderInPlace();
     }
   };
 
   const toolbar = el(doc, 'div', { class: 'stpd-world-toolbar' });
   const search = el(doc, 'input', { type: 'search', value: ui.search, placeholder: '搜索世界书或条目', 'aria-label': '搜索世界书或条目' });
-  search.onchange = () => { ui.search = search.value.trim().toLowerCase(); rerender(); };
+  search.onchange = () => { ui.search = search.value.trim().toLowerCase(); rerenderInPlace(); };
   const selectAll = el(doc, 'button', { type: 'button', disabled: ui.busy }, '全选');
   selectAll.onclick = () => runAction(async () => {
-    ui.busy = true; rerender();
+    ui.busy = true; rerenderInPlace();
     try {
       for (const name of names) setBookSelected(selection, await loadBook(name), true);
       await saveSettings();
-    } finally { ui.busy = false; rerender(); }
+    } finally { ui.busy = false; rerenderInPlace(); }
   }, services.notice);
   const selectNone = el(doc, 'button', { type: 'button', disabled: ui.busy }, '全不选');
-  selectNone.onclick = () => { settings.context.worldInfoBooks = {}; saveSettings(); rerender(); };
+  selectNone.onclick = () => { settings.context.worldInfoBooks = {}; saveSettings(); rerenderInPlace(); };
   toolbar.append(search, selectAll, selectNone);
   body.append(el(doc, 'h4', {}, '世界书条目选择'), toolbar);
 
@@ -57,6 +63,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
   if (staleNames.length) body.append(el(doc, 'p', { class: 'stpd-alert' }, `有 ${staleNames.length} 本已选择的世界书当前未安装。`));
   if (!names.length) {
     body.append(el(doc, 'p', { class: 'stpd-muted' }, '酒馆中没有可读取的世界书。'));
+    restoreScroll();
     return;
   }
 
@@ -70,8 +77,8 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
     const row = el(doc, 'div', { class: 'stpd-world-book-row' });
     const expand = el(doc, 'button', { type: 'button', class: `stpd-world-expand fa-solid ${ui.expanded.has(name) ? 'fa-chevron-down' : 'fa-chevron-right'}`, 'aria-label': `${ui.expanded.has(name) ? '收起' : '展开'} ${name}` });
     expand.onclick = () => {
-      if (ui.expanded.has(name)) { ui.expanded.delete(name); rerender(); return; }
-      ui.expanded.add(name); rerender();
+      if (ui.expanded.has(name)) { ui.expanded.delete(name); rerenderInPlace(); return; }
+      ui.expanded.add(name); rerenderInPlace();
       runAction(() => loadBook(name), services.notice);
     };
     const checkbox = el(doc, 'input', { type: 'checkbox', disabled: ui.loading.has(name), 'aria-label': `选择世界书 ${name}` });
@@ -83,7 +90,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
     checkbox.onchange = () => runAction(async () => {
       const loaded = await loadBook(name);
       setBookSelected(selection, loaded, checkbox.checked);
-      await saveSettings(); rerender();
+      await saveSettings(); rerenderInPlace();
     }, services.notice);
     row.append(expand, checkbox, el(doc, 'strong', {}, name));
     section.append(row);
@@ -96,7 +103,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
         const key = worldEntryKey(name, entry);
         const current = selection[name];
         const input = el(doc, 'input', { type: 'checkbox', checked: Boolean(current?.all || current?.entries?.includes(key)) });
-        input.onchange = () => { setEntrySelected(selection, name, entry, input.checked); saveSettings(); rerender(); };
+        input.onchange = () => { setEntrySelected(selection, name, entry, input.checked); saveSettings(); rerenderInPlace(); };
         entriesNode.append(field(doc, entryLabel(entry), input));
       }
       if (!entries.length) entriesNode.append(el(doc, 'p', { class: 'stpd-muted' }, '没有匹配的条目。'));
@@ -105,4 +112,5 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
     list.append(section);
   }
   body.append(list);
+  restoreScroll();
 }
