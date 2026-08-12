@@ -4,7 +4,7 @@ import test from 'node:test';
 async function source() {
   const fs = await import('node:fs/promises');
   const root = new URL('../../src/ui/', import.meta.url);
-  const files = ['director-console.js', 'dom.js', 'views/event.js', 'views/cast.js', 'views/preferences.js', 'views/connection.js', 'views/world-info.js', 'views/snapshots.js', 'views/appearance.js', 'dialogs/confirm.js'];
+  const files = ['director-console.js', 'dom.js', 'views/event.js', 'views/cast.js', 'views/preferences.js', 'views/connection.js', 'views/world-info.js', 'views/snapshots.js', 'views/appearance.js', 'views/diagnostics.js', 'dialogs/confirm.js'];
   return (await Promise.all(files.map((file) => fs.readFile(new URL(file, root), 'utf8')))).join('\n');
 }
 
@@ -22,6 +22,7 @@ test('console module exports lifecycle contract', async () => {
   assert.match(consoleText, /aria-label': '打开设置'/);
   assert.doesNotMatch(consoleText, /fa-gear[^\n]*⚙/);
   assert.match(consoleText, /SETTINGS_TABS/);
+  assert.match(consoleText, /\['diagnostics', '检查'\]/);
   assert.doesNotMatch(consoleText, /\['connection', '连接'\].*TABS/);
   for (const contract of ['aria-selected', 'stpd-overlay', 'stpd-modal', 'stpd-modal-body', 'openModal', 'Escape']) assert.match(text, new RegExp(contract));
   assert.doesNotMatch(text, /event\.target === overlay/);
@@ -67,12 +68,29 @@ test('console exposes selective snapshot migration', async () => {
 
 test('console delegates views and dialogs to modular UI files', async () => {
   const text = await source();
-  for (const moduleName of ['event', 'cast', 'preferences', 'connection', 'world-info', 'snapshots', 'appearance']) {
+  for (const moduleName of ['event', 'cast', 'preferences', 'connection', 'world-info', 'snapshots', 'appearance', 'diagnostics']) {
     assert.match(text, new RegExp(`views/${moduleName}\\.js`));
   }
   for (const moduleName of ['manual-event', 'snapshot-import', 'cast-correction', 'confirm']) {
     assert.match(text, new RegExp(`dialogs/${moduleName}\\.js`));
   }
+});
+
+test('settings diagnostics page exposes checks, reports, and retained event outcomes', async () => {
+  const text = await uiSource('views/diagnostics.js');
+  for (const label of ['运行检查', '复制诊断报告', '清空记录', '当前状态', '检查结果', '最近记录']) {
+    assert.match(text, new RegExp(label));
+  }
+  assert.match(text, /state\.diagnostics/);
+  assert.match(text, /services\.runDiagnostics/);
+  assert.match(text, /services\.copyDiagnosticReport/);
+});
+
+test('appearance page exposes day and night modes plus a CSS template export', async () => {
+  const text = await uiSource('views/appearance.js');
+  for (const label of ['白天', '夜晚', '导出 CSS 模板']) assert.match(text, new RegExp(label));
+  assert.match(text, /theme\.mode/);
+  assert.match(text, /exportCssTemplate/);
 });
 
 test('cast view exposes replace, merge, and split correction workflows', async () => {

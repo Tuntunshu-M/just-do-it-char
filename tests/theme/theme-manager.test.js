@@ -1,5 +1,6 @@
-import assert from'node:assert/strict';import test from'node:test';import{createThemeManager,scopeCss}from'../../src/theme/theme-manager.js';
+import assert from'node:assert/strict';import test from'node:test';import{createCssTemplate,createThemeManager,scopeCss,themeModeClass}from'../../src/theme/theme-manager.js';
 test('css scopes ordinary selectors but preserves at-rules',()=>{const css=scopeCss('.x, button {color:red}@media (max-width:600px){.x{color:blue}}');assert.match(css,/#st-proactive-director \.x/);assert.match(css,/@media/);});
+test('css keeps selectors that are already scoped to the plugin root',()=>{const css=scopeCss('#st-proactive-director {color:red}\n#st-proactive-director .x, button {color:blue}');assert.doesNotMatch(css,/#st-proactive-director #st-proactive-director/);assert.match(css,/#st-proactive-director\s*\{color:red\}/);assert.match(css,/#st-proactive-director \.x/);assert.match(css,/#st-proactive-director button/);});
 test('theme export contains appearance only',()=>{const nodes=[];const doc={head:{append:n=>nodes.push(n)},createElement:()=>({remove(){this.removed=true;}})};const m=createThemeManager(doc,{save:async()=>{}});m.preview({enabled:true,css:'.x{}',variables:{'--stpd-accent':'#fff'}});const out=m.exportTheme();assert.equal(JSON.stringify(out).includes('apiKey'),false);m.destroy();assert.equal(nodes[0].removed,true);});
 
 test('theme scoping handles supports and keyframes without prefixing at-rule bodies', () => {
@@ -17,7 +18,7 @@ test('theme rollback returns the restored theme for settings synchronization', a
  m.preview({enabled:true,css:'.a { color: red; }'});
  await m.save();
  m.preview({enabled:true,css:'.a { color: blue; }'});
- assert.deepEqual(m.rollback(),{enabled:true,allowGlobalCss:false,variables:{},css:'.a { color: red; }'});
+ assert.deepEqual(m.rollback(),{mode:'night',enabled:true,allowGlobalCss:false,variables:{},css:'.a { color: red; }'});
 });
 
 test('theme load establishes the persisted rollback baseline', () => {
@@ -26,5 +27,17 @@ test('theme load establishes the persisted rollback baseline', () => {
  const m=createThemeManager(doc,{save:async()=>{}});
  m.load({enabled:true,allowGlobalCss:false,variables:{},css:'.saved { color: green; }'});
  m.preview({enabled:true,css:'.preview { color: blue; }'});
- assert.deepEqual(m.rollback(),{enabled:true,allowGlobalCss:false,variables:{},css:'.saved { color: green; }'});
+ assert.deepEqual(m.rollback(),{mode:'night',enabled:true,allowGlobalCss:false,variables:{},css:'.saved { color: green; }'});
+});
+
+test('theme mode maps persisted settings to a stable root class', () => {
+ assert.equal(themeModeClass('day'), 'stpd-theme-day');
+ assert.equal(themeModeClass('night'), 'stpd-theme-night');
+ assert.equal(themeModeClass('unknown'), 'stpd-theme-night');
+});
+
+test('css template exposes editable variables and common scoped components without secrets', () => {
+ const css=createCssTemplate();
+ for(const token of ['--stpd-bg','--stpd-panel','--stpd-text','--stpd-muted','--stpd-accent','.stpd-modal','.stpd-tabs button','.stpd-actions button','input,','textarea'])assert.match(css,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+ assert.doesNotMatch(css,/apiKey|Authorization|Bearer|endpoint/i);
 });

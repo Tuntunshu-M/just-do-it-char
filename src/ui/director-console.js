@@ -6,6 +6,8 @@ import { renderConnectionView } from './views/connection.js';
 import { renderWorldInfoView } from './views/world-info.js';
 import { renderSnapshotsView } from './views/snapshots.js';
 import { renderAppearanceView } from './views/appearance.js';
+import { renderDiagnosticsView } from './views/diagnostics.js';
+import { themeModeClass } from '../theme/theme-manager.js';
 import './dialogs/manual-event.js';
 import './dialogs/snapshot-import.js';
 import './dialogs/cast-correction.js';
@@ -16,7 +18,7 @@ const TABS = [
   ['preferences', '偏好'], ['snapshots', '副本'],
 ];
 
-const SETTINGS_TABS = [['connection', '连接'], ['appearance', '外观']];
+const SETTINGS_TABS = [['connection', '连接'], ['diagnostics', '检查'], ['appearance', '外观']];
 
 export function createDirectorConsole({ root, services }) {
   let active = 'event';
@@ -34,7 +36,8 @@ export function createDirectorConsole({ root, services }) {
     const shared = { body, settings, state, services, saveSettings, saveState, rerender: render };
     if (settingsOpen) {
       if (settingsActive === 'connection') renderConnectionView(shared);
-      else renderAppearanceView(shared);
+      else if (settingsActive === 'diagnostics') renderDiagnosticsView(shared);
+      else if (settingsActive === 'appearance') renderAppearanceView(shared);
       return;
     }
     if (active === 'event') renderEventView(shared);
@@ -48,7 +51,7 @@ export function createDirectorConsole({ root, services }) {
   function render() {
     root.replaceChildren();
     root.id = 'st-proactive-director';
-    root.className = `stpd-console${open ? ' stpd-modal-open' : ''}`;
+    root.className = `stpd-console ${themeModeClass(settings.theme?.mode)}${open ? ' stpd-modal-open' : ''}`;
     const doc = root.ownerDocument;
     const overlay = el(doc, 'div', { class: 'stpd-overlay', role: 'presentation' });
     const modal = el(doc, 'section', { class: 'stpd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '导演时间' });

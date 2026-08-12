@@ -1,5 +1,6 @@
 import { evaluatePolicy as defaultPolicy } from './policy.js';
 import { EXTENSION_PROMPT_KEY } from '../constants.js';
+import { startDiagnostic, updateDiagnostic } from '../diagnostics/records.js';
 
 function generationState(phase, previous = {}, error = '') {
   const finished = ['idle', 'completed', 'failed'].includes(phase);
@@ -12,7 +13,7 @@ function generationState(phase, previous = {}, error = '') {
   };
 }
 
-export function createDirectorPipeline({ adapter, store, client, policy, personality, engine, collector, scheduler, onProgress }) {
+export function createDirectorPipeline({ adapter, store, client, policy, personality, engine, collector, scheduler, onProgress, onOutcome }) {
   const inFlight = new Map();
   let generation = 0;
 
@@ -22,12 +23,13 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     onProgress?.(state);
   }
 
-  async function requestWithPersonality(context, intent, connection, state) {
+  async function requestWithPersonality(context, intent, connection, state, setStage) {
     let result = await client.requestDirector({ context, intent }, connection, (update) => {
       state.generation.phase = update.phase;
       onProgress?.(state);
     });
     if (!personality?.validate) return result;
+    await setStage('validating');
     const validation = personality.validate(result, context);
     if (validation.allowed) return result;
     result = await client.requestDirector({
@@ -47,45 +49,79 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     const automatic = intent.type === 'advance' || intent.type === 'idle';
     if (automatic && scheduler && !scheduler.shouldTrigger(state, settings.trigger, intent.environment)) return { skipped: true };
 
+    const secrets = settings.connection ?? {};
+    const diagnostic = startDiagnostic(state, { trigger: intent.type, stage: 'collecting' }, { secrets });
+    let diagnosticStage = 'collecting';
+    const setDiagnosticStage = async (stage) => {
+      diagnosticStage = stage;
+      updateDiagnostic(state, diagnostic.id, { stage }, { secrets });
+      await store.saveChat?.(state);
+      onProgress?.(state);
+    };
+    const finishDiagnostic = async (status, message = '') => {
+      const record = updateDiagnostic(state, diagnostic.id, { status, stage: diagnosticStage, message }, { secrets });
+      await store.saveChat?.(state);
+      onProgress?.(state);
+      try { await onOutcome?.({ ...record }); } catch { /* notifications must not break generation */ }
+      return record;
+    };
+
     await persist(state, 'collecting');
     let context;
     let result;
     let injectionCleared = false;
     try {
       context = await collector(adapter, state, settings);
+      await setDiagnosticStage('generating');
       await persist(state, 'generating');
-      result = await requestWithPersonality(context, intent, settings.connection, state);
+      result = await requestWithPersonality(context, intent, settings.connection, state, setDiagnosticStage);
     } catch (error) {
       await persist(state, 'failed', error.message);
+      await finishDiagnostic('failed', error.message);
       throw error;
     }
 
     if (token !== generation || adapter.getCurrentChatKey() !== chatKey) {
       await persist(state, 'idle');
+      await finishDiagnostic('not-generated', '聊天已切换或本次生成已取消');
       return { cancelled: true };
     }
 
     await store.saveGlobal?.(settings);
+    if (!result.event) {
+      const message = result.feedback?.reason ?? result.feedback?.message ?? '本次判断未创建事件';
+      await persist(state, 'idle', message);
+      await finishDiagnostic('not-generated', message);
+      return { status: 'not-generated', reason: message };
+    }
+    await setDiagnosticStage('policy');
     const check = (policy?.evaluatePolicy ?? defaultPolicy)({
-      proposal: result.event ?? { category: 'daily' }, state, settings, userText,
+      proposal: result.event, state, settings, userText,
     });
     if (!check.allowed) {
-      await persist(state, 'idle', check.reasons?.join('; ') ?? '');
+      const message = check.reasons?.join('; ') || '事件未通过当前规则检查';
+      await persist(state, 'idle', message);
+      await finishDiagnostic('not-generated', message);
       return check;
     }
 
-    await engine.stage(chatKey, state.characterFingerprint, {
-      proposal: result.event,
-      foreshadowing: result.foreshadowing,
-      ruleLedgerUpdate: result.ruleLedgerUpdate,
-      lastInjection: result.injection,
-    });
+    let staged = false;
     try {
+      await engine.stage(chatKey, state.characterFingerprint, {
+        proposal: result.event,
+        foreshadowing: result.foreshadowing,
+        ruleLedgerUpdate: result.ruleLedgerUpdate,
+        lastInjection: result.injection,
+      });
+      staged = true;
+      await setDiagnosticStage('injecting');
       await persist(state, 'injecting');
       await adapter.injectPrompt(EXTENSION_PROMPT_KEY, result.injection);
+      await setDiagnosticStage('reply');
       await adapter.generateReply();
       await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');
       injectionCleared = true;
+      await setDiagnosticStage('commit');
       await engine.commit(chatKey, state.characterFingerprint);
       state.lastInjection = result.injection;
       if (result.event) {
@@ -96,10 +132,12 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
         state.cooldowns.lastTurn = state.counters.turns ?? 0;
       }
       await persist(state, 'completed');
+      await finishDiagnostic('success', result.event.title ?? '事件已生成');
       return result;
     } catch (error) {
-      await engine.rollback(chatKey, state.characterFingerprint);
+      if (staged) await engine.rollback(chatKey, state.characterFingerprint);
       await persist(state, 'failed', error.message);
+      await finishDiagnostic('failed', error.message);
       throw error;
     } finally {
       if (!injectionCleared) await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');

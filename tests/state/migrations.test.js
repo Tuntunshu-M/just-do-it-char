@@ -17,6 +17,7 @@ test('migration upgrades legacy state while preserving unknown fields', () => {
   assert.equal(migrated.preference.userAgency, 20);
   assert.deepEqual(migrated.customPluginData, { keep: true });
   assert.ok(Array.isArray(migrated.foreshadowing));
+  assert.deepEqual(migrated.diagnostics, { records: [], lastCheck: null });
 });
 
 test('migration rejects state from a newer schema', () => {

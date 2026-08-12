@@ -61,6 +61,7 @@ export function createGlobalSettings() {
       consequencePermissions: {},
     },
     theme: {
+      mode: 'night',
       enabled: false,
       allowGlobalCss: false,
       variables: {},
@@ -81,6 +82,7 @@ export function createDirectorState(chatKey = null, fingerprint = null) {
     historySummary: '',
     directorNotes: '',
     generation: { phase: 'idle', startedAt: null, finishedAt: null, error: '' },
+    diagnostics: { records: [], lastCheck: null },
     preference: {
       userAgency: 80,
       categoryOverrides: {},

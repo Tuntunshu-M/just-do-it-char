@@ -25,6 +25,20 @@ test('extension reloads chat state and clears the world-book cache after chat ch
   assert.doesNotMatch(source, /const chatKey = hostAdapter\.getCurrentChatKey/);
 });
 
+test('event outcomes produce immediate guidance for failed and unsuccessful attempts', async () => {
+  const { eventOutcomeNotice } = await import('../../index.js');
+
+  assert.equal(
+    eventOutcomeNotice({ status: 'failed', stage: 'generating', message: '模型返回无效 JSON' }),
+    '事件生成失败（导演生成）：模型返回无效 JSON。可在 设置 → 检查 查看详情。',
+  );
+  assert.equal(
+    eventOutcomeNotice({ status: 'not-generated', stage: 'policy', message: '触及硬禁区' }),
+    '事件未生成（规则检查）：触及硬禁区。可在 设置 → 检查 查看详情。',
+  );
+  assert.equal(eventOutcomeNotice({ status: 'success', stage: 'commit', message: 'ok' }), '');
+});
+
 test('native menu entry uses a clapperboard and the Director Time label', async () => {
   const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
 

@@ -12,12 +12,26 @@ test('adapter reports unavailable host capabilities explicitly', () => {
     character: false,
     messages: false,
     promptInjection: false,
+    rawGeneration: false,
+    normalGeneration: false,
     generation: false,
     settings: false,
     chatState: false,
     confirmation: false,
     events: false,
   });
+});
+
+test('adapter exposes raw and normal generation capabilities independently', () => {
+  const rawOnly = createSillyTavernAdapter(() => ({ generateRaw() {} }));
+  const normalOnly = createSillyTavernAdapter(() => ({ generate() {} }));
+
+  assert.equal(rawOnly.capabilities.rawGeneration, true);
+  assert.equal(rawOnly.capabilities.normalGeneration, false);
+  assert.equal(rawOnly.capabilities.generation, false);
+  assert.equal(normalOnly.capabilities.rawGeneration, false);
+  assert.equal(normalOnly.capabilities.normalGeneration, true);
+  assert.equal(normalOnly.capabilities.generation, false);
 });
 
 test('adapter delegates every supported operation to the host context', async () => {

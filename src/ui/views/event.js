@@ -10,7 +10,7 @@ export function renderEventView({ body, state, services, saveState }) {
   const create = el(doc, 'button', { type: 'button' }, '创建事件');
   create.onclick = () => {
     const value = idea.value.trim();
-    if (value) showManualEventPreview(body, { idea: value, expand: expand.checked, onConfirm: () => runAction(() => services.onManualEvent?.(value, expand.checked), services.notice) });
+    showManualEventPreview(body, { idea: value, expand: expand.checked, onConfirm: () => runAction(() => services.onManualEvent?.(value, expand.checked), services.notice) });
   };
   body.append(field(doc, '事件想法', idea), field(doc, '让 AI 扩展', expand), create);
   if (state.activeEvent) {

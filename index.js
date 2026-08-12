@@ -7,13 +7,15 @@ import { createEventEngine } from './src/director/event-engine.js';
 import { createDirectorPipeline } from './src/director/pipeline.js';
 import { evaluatePolicy } from './src/director/policy.js';
 import { createScheduler } from './src/director/scheduler.js';
-import { createThemeManager } from './src/theme/theme-manager.js';
+import { createCssTemplate, createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
 import { buildPersonalityProfile } from './src/director/personality-profile.js';
 import { correctCast, lockCast } from './src/cast/cast-manager.js';
 import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 import { selectedWorldEntries } from './src/world-info/selection.js';
+import { runDiagnostics } from './src/diagnostics/inspector.js';
+import { formatDiagnosticReport } from './src/diagnostics/records.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -22,6 +24,24 @@ function resolveContext() {
 export const hostAdapter = createSillyTavernAdapter(resolveContext);
 let consoleInstance;
 let runtime;
+
+const OUTCOME_STAGE_LABELS = {
+  collecting: '上下文采集',
+  generating: '导演生成',
+  validating: '人格校验',
+  policy: '规则检查',
+  injecting: '提示注入',
+  reply: '正文生成',
+  commit: '结果提交',
+};
+
+export function eventOutcomeNotice(outcome = {}) {
+  if (!['failed', 'not-generated'].includes(outcome.status)) return '';
+  const result = outcome.status === 'failed' ? '事件生成失败' : '事件未生成';
+  const stage = OUTCOME_STAGE_LABELS[outcome.stage] ?? outcome.stage ?? '未知阶段';
+  const message = outcome.message || (outcome.status === 'failed' ? '发生未知错误' : '本次判断没有创建事件');
+  return `${result}（${stage}）：${message}。可在 设置 → 检查 查看详情。`;
+}
 
 function openAfterMenuDismissal(entry) {
   let opened = false;
@@ -94,6 +114,7 @@ export function initializeExtension() {
   theme.load(settings.theme);
   const directorClient = createDirectorClient({ adapter: hostAdapter });
   let rerender = () => {};
+  const notice = (message) => hostAdapter.showSystemMessage?.(message);
   const pipeline = createDirectorPipeline({
     adapter: hostAdapter,
     store,
@@ -112,6 +133,11 @@ export function initializeExtension() {
       },
     },
     onProgress: (nextState) => { state = nextState; rerender(); },
+    onOutcome: (outcome) => {
+      const message = eventOutcomeNotice(outcome);
+      if (message) notice(message);
+      rerender();
+    },
   });
   const refresh = () => {
     settings = store.loadGlobal();
@@ -121,7 +147,6 @@ export function initializeExtension() {
     rerender();
   };
   rerender = () => consoleInstance?.render({ settings, state });
-  const notice = (message) => hostAdapter.showSystemMessage?.(message);
   const worldBookCache = new Map();
   const worldInfoNames = () => hostAdapter.getWorldInfoNames();
   const loadWorldInfoBook = async (name) => {
@@ -210,13 +235,23 @@ export function initializeExtension() {
       correctCast: async (correction) => { state.cast = correctCast(state.cast, correction); await store.saveChat(state); refresh(); },
       isGroupChat: () => Boolean(hostAdapter.getContext().groupId ?? hostAdapter.getContext().group_id),
       testConnection: (connection) => directorClient.testConnection(connection),
+      runDiagnostics: () => runDiagnostics({ adapter: hostAdapter, settings, state }),
+      copyDiagnosticReport: async (snapshot) => {
+        if (!globalThis.navigator?.clipboard?.writeText) throw new Error('当前环境无法访问剪贴板。');
+        await globalThis.navigator.clipboard.writeText(formatDiagnosticReport(snapshot));
+        notice('诊断报告已复制。');
+      },
       saveTheme: async (value) => { theme.preview(value); await theme.save(); settings.theme = value; await store.saveGlobal(settings); refresh(); },
       disableTheme: async () => { theme.disable(); settings.theme.enabled = false; await store.saveGlobal(settings); refresh(); },
       rollbackTheme: async () => { settings.theme = theme.rollback(); await store.saveGlobal(settings); refresh(); },
-      resetTheme: async () => { theme.reset(); settings.theme = { enabled: false, allowGlobalCss: false, variables: {}, css: '' }; await store.saveGlobal(settings); refresh(); },
+      resetTheme: async () => { theme.reset(); settings.theme = { mode: 'night', enabled: false, allowGlobalCss: false, variables: {}, css: '' }; await store.saveGlobal(settings); refresh(); },
       exportTheme: () => {
         const blob = new Blob([JSON.stringify(theme.exportTheme(), null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'proactive-director-theme.json'; link.click(); URL.revokeObjectURL(url);
+      },
+      exportCssTemplate: () => {
+        const blob = new Blob([createCssTemplate()], { type: 'text/css;charset=utf-8' });
+        const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'proactive-director-template.css'; link.click(); URL.revokeObjectURL(url);
       },
       importTheme: async (file) => { try { theme.importTheme(JSON.parse(await file.text())); settings.theme = theme.exportTheme().theme; await store.saveGlobal(settings); refresh(); } catch (error) { notice(`主题导入失败：${error.message}`); } },
     },

@@ -36,6 +36,8 @@ export function createSillyTavernAdapter(contextProvider) {
         character: Array.isArray(host.characters) && host.characterId !== undefined,
         messages: Array.isArray(host.chat),
         promptInjection: hasFunction(host.setExtensionPrompt),
+        rawGeneration: hasFunction(host.generateRaw),
+        normalGeneration: hasFunction(host.generate),
         generation: hasFunction(host.generate) && hasFunction(host.generateRaw),
         settings: hasFunction(host.saveSettingsDebounced),
         chatState: hasFunction(host.saveMetadataDebounced) || hasFunction(host.saveMetadata),
