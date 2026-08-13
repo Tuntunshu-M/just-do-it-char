@@ -196,6 +196,7 @@
 #st-proactive-director .stpd-revision-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 2px; }
 #st-proactive-director button.stpd-compact { min-height: 30px; padding: 4px 8px; font-size: 12px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
 #st-proactive-director button.stpd-compact:hover { border-color: var(--stpd-accent); }
+#st-proactive-director button.stpd-compact:disabled { cursor: wait; opacity: 0.7; }
 #st-proactive-director .stpd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #st-proactive-director .stpd-actions button { min-height: 36px; padding: 7px 11px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
 #st-proactive-director .stpd-theme-actions { gap: 6px; }

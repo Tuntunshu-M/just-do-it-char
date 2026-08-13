@@ -15,6 +15,20 @@ function disclosure(doc, label, values, className = '') {
   return details;
 }
 
+function profileAction(doc, services, label) {
+  const action = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, label);
+  action.onclick = async () => {
+    action.disabled = true;
+    action.textContent = '正在生成侧写...';
+    await runAction(() => services.refreshPersonalityProfile?.(), services.notice);
+    if (action.isConnected !== false) {
+      action.disabled = false;
+      action.textContent = label;
+    }
+  };
+  return action;
+}
+
 export function renderCastView({ body, state, settings, services }) {
   const doc = body.ownerDocument;
   const profile = services.personalityProfile?.(settings.context) ?? { status: 'empty', name: '', content: '', citations: [] };
@@ -28,8 +42,7 @@ export function renderCastView({ body, state, settings, services }) {
   body.append(correct);
   if (profile.status === 'stale-pending') {
     body.append(el(doc, 'p', { class: 'stpd-alert' }, '角色资料有改动，要重新生成侧写吗？'));
-    const refresh = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '重新生成侧写');
-    refresh.onclick = () => runAction(() => services.refreshPersonalityProfile?.(), services.notice);
+    const refresh = profileAction(doc, services, '重新生成侧写');
     const ignore = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '暂时不用');
     ignore.onclick = () => runAction(() => services.ignorePersonalityProfile?.(), services.notice);
     body.append(refresh, ignore);
@@ -37,12 +50,14 @@ export function renderCastView({ body, state, settings, services }) {
     body.append(el(doc, 'p', { class: 'stpd-muted' }, '正在生成压缩人物侧写…'));
   } else if (profile.status === 'failed') {
     body.append(el(doc, 'p', { class: 'stpd-alert' }, `人物侧写生成失败：${profile.error || '模型未返回有效结果'}`));
-    const refresh = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '重新生成侧写');
-    refresh.onclick = () => runAction(() => services.refreshPersonalityProfile?.(), services.notice);
-    body.append(refresh);
+    body.append(profileAction(doc, services, '重新生成侧写'));
   } else if (profile.content) {
     body.append(disclosure(doc, '全部侧写', [profile.content]));
     const citations = (profile.citations ?? []).map((item) => `${item.source}: ${item.excerpt}`);
     if (citations.length) body.append(disclosure(doc, '引用资料', citations, 'stpd-evidence-list'));
-  } else body.append(el(doc, 'p', { class: 'stpd-muted' }, '正在准备人物侧写。'));
+    body.append(profileAction(doc, services, '重新生成侧写'));
+  } else {
+    body.append(el(doc, 'p', { class: 'stpd-muted' }, '尚未生成人物侧写。'));
+    body.append(profileAction(doc, services, '生成侧写'));
+  }
 }

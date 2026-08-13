@@ -1,11 +1,15 @@
 import { el, field, runAction } from '../dom.js';
 import { bookSelectionState, setBookSelected, setEntrySelected, worldEntryKey } from '../../world-info/selection.js';
 
-const viewStates = new WeakMap();
+const settingsViewStates = new WeakMap();
+const serviceViewStates = new WeakMap();
 
-function stateFor(settings) {
-  if (!viewStates.has(settings)) viewStates.set(settings, { expanded: new Set(), books: new Map(), loading: new Set(), errors: new Map(), search: '', busy: false, scrollTop: 0, parentScrollTop: 0, body: null });
-  return viewStates.get(settings);
+function stateFor(settings, services) {
+  const existing = serviceViewStates.get(services) ?? settingsViewStates.get(settings);
+  const state = existing ?? { expanded: new Set(), books: new Map(), loading: new Set(), errors: new Map(), search: '', busy: false, scrollTop: 0, parentScrollTop: 0, documentScrollTop: 0, body: null };
+  serviceViewStates.set(services, state);
+  settingsViewStates.set(settings, state);
+  return state;
 }
 
 function entryLabel(entry) {
@@ -14,12 +18,13 @@ function entryLabel(entry) {
 
 export function renderWorldInfoView({ body, settings, services, saveSettings, rerender }) {
   const doc = body.ownerDocument;
-  const ui = stateFor(settings);
+  const ui = stateFor(settings, services);
   ui.body = body;
   const captureScroll = () => {
     if (ui.body) {
       ui.scrollTop = ui.body.scrollTop;
       ui.parentScrollTop = ui.body.parentElement?.scrollTop ?? ui.parentScrollTop;
+      ui.documentScrollTop = doc.scrollingElement?.scrollTop ?? doc.documentElement?.scrollTop ?? ui.documentScrollTop;
     }
   };
   const rerenderInPlace = () => {
@@ -29,6 +34,8 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
       if (!current) return;
       current.scrollTop = ui.scrollTop;
       if (current.parentElement) current.parentElement.scrollTop = ui.parentScrollTop;
+      const scrollingElement = current.ownerDocument?.scrollingElement ?? current.ownerDocument?.documentElement;
+      if (scrollingElement) scrollingElement.scrollTop = ui.documentScrollTop;
     };
     restore();
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restore);
@@ -37,6 +44,8 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
   const restoreScroll = () => {
     body.scrollTop = ui.scrollTop;
     if (body.parentElement) body.parentElement.scrollTop = ui.parentScrollTop;
+    const scrollingElement = doc.scrollingElement ?? doc.documentElement;
+    if (scrollingElement) scrollingElement.scrollTop = ui.documentScrollTop;
   };
   const selection = settings.context.worldInfoBooks ??= {};
   const names = services.worldInfoNames?.() ?? [];
@@ -95,6 +104,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
     const row = el(doc, 'div', { class: 'stpd-world-book-row' });
     const expand = el(doc, 'button', { type: 'button', class: `stpd-world-expand fa-solid ${ui.expanded.has(name) ? 'fa-chevron-down' : 'fa-chevron-right'}`, 'aria-label': `${ui.expanded.has(name) ? '收起' : '展开'} ${name}` });
     expand.onclick = () => {
+      captureScroll();
       if (ui.expanded.has(name)) { ui.expanded.delete(name); rerenderInPlace(); return; }
       ui.expanded.add(name); rerenderInPlace();
       runAction(() => loadBook(name), services.notice);
@@ -122,7 +132,12 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
         const key = worldEntryKey(name, entry);
         const current = selection[name];
         const input = el(doc, 'input', { type: 'checkbox', checked: Boolean(current?.all || current?.entries?.includes(key)) });
-        input.onchange = () => { captureScroll(); setEntrySelected(selection, name, entry, input.checked); saveSettings(); rerenderInPlace(); };
+        input.onchange = () => runAction(async () => {
+          captureScroll();
+          setEntrySelected(selection, name, entry, input.checked);
+          await saveSettings();
+          rerenderInPlace();
+        }, services.notice);
         entriesNode.append(field(doc, entryLabel(entry), input));
       }
       if (!entries.length) entriesNode.append(el(doc, 'p', { class: 'stpd-muted' }, '没有匹配的条目。'));
