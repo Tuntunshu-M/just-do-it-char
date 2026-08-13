@@ -194,6 +194,74 @@
 #st-proactive-director .stpd-event-list li { overflow-wrap: anywhere; }
 #st-proactive-director .stpd-event-revisions { margin-top: 2px; }
 #st-proactive-director .stpd-revision-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 2px; }
+#st-proactive-director .stpd-script-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-gutter: stable;
+}
+#st-proactive-director .stpd-script-toolbar button { flex: 0 0 auto; white-space: nowrap; }
+#st-proactive-director .stpd-script-layout {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+#st-proactive-director .stpd-script-list,
+#st-proactive-director .stpd-script-detail {
+  min-width: 0;
+  max-height: min(58dvh, 560px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+#st-proactive-director .stpd-script-list { display: grid; align-content: start; gap: 6px; }
+#st-proactive-director .stpd-script-list-item {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  text-align: left;
+  color: var(--stpd-text);
+  background: var(--stpd-panel);
+  border: 1px solid var(--stpd-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+#st-proactive-director .stpd-script-list-item > * { min-width: 0; overflow-wrap: anywhere; }
+#st-proactive-director .stpd-script-list-item.is-selected { border-color: var(--stpd-accent); box-shadow: inset 3px 0 0 var(--stpd-accent); }
+#st-proactive-director .stpd-script-status { color: var(--stpd-muted); font-size: 12px; }
+#st-proactive-director .stpd-script-detail { display: grid; align-content: start; gap: 10px; padding-right: 4px; }
+#st-proactive-director .stpd-script-section { display: grid; gap: 6px; min-width: 0; padding-top: 8px; border-top: 1px solid var(--stpd-border); }
+#st-proactive-director .stpd-script-section:first-child { padding-top: 0; border-top: 0; }
+#st-proactive-director .stpd-script-items { display: grid; gap: 6px; margin: 0; padding-left: 22px; }
+#st-proactive-director .stpd-script-items li,
+#st-proactive-director .stpd-script-detail p { overflow-wrap: anywhere; }
+#st-proactive-director .stpd-cast-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+#st-proactive-director .stpd-cast-mode button { min-width: 0; overflow-wrap: anywhere; }
+#st-proactive-director .stpd-cast-members { display: grid; gap: 6px; min-width: 0; }
+#st-proactive-director .stpd-cast-member {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--stpd-border);
+  border-radius: 4px;
+}
+#st-proactive-director .stpd-cast-member > * { min-width: 0; }
+#st-proactive-director .stpd-cast-member strong { overflow-wrap: anywhere; }
 #st-proactive-director button.stpd-compact { min-height: 30px; padding: 4px 8px; font-size: 12px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
 #st-proactive-director button.stpd-compact:hover { border-color: var(--stpd-accent); }
 #st-proactive-director button.stpd-compact:disabled { cursor: wait; opacity: 0.7; }
@@ -274,6 +342,10 @@
   #st-proactive-director .stpd-world-toolbar button { padding-inline: 6px; }
   #st-proactive-director .stpd-world-entries { padding-left: 34px; }
   #st-proactive-director .stpd-world-entries .stpd-field { grid-template-columns: minmax(0, 1fr) auto; }
+  #st-proactive-director .stpd-script-layout { grid-template-columns: 1fr; }
+  #st-proactive-director .stpd-script-list { max-height: 150px; }
+  #st-proactive-director .stpd-script-detail { max-height: none; overflow-y: visible; padding-right: 0; }
+  #st-proactive-director .stpd-cast-member { grid-template-columns: minmax(0, 1fr) auto; }
   #st-proactive-director .stpd-diagnostic-summary { grid-template-columns: 1fr; }
   #st-proactive-director .stpd-diagnostic-records { max-height: 220px; }
 }

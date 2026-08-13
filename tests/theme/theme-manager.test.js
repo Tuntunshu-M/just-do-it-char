@@ -41,3 +41,13 @@ test('css template exposes editable variables and common scoped components witho
  for(const token of ['--stpd-bg','--stpd-panel','--stpd-text','--stpd-muted','--stpd-accent','.stpd-modal','.stpd-tabs button','.stpd-actions button','input,','textarea'])assert.match(css,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
  assert.doesNotMatch(css,/apiKey|Authorization|Bearer|endpoint/i);
 });
+
+test('css template includes responsive script library and cast controls', () => {
+ const css=createCssTemplate();
+ for(const token of ['.stpd-script-layout','.stpd-script-list','.stpd-script-detail','.stpd-script-toolbar','.stpd-cast-mode','.stpd-cast-members','.stpd-cast-member','@media (max-width: 520px)']){
+  assert.match(css,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+ }
+ assert.match(css,/\.stpd-script-layout\s*\{[^}]*grid-template-columns:\s*minmax\(150px,\s*210px\)\s+minmax\(0,\s*1fr\)/s);
+ assert.match(css,/\.stpd-script-toolbar\s*\{[^}]*flex-wrap:\s*nowrap[^}]*overflow-x:\s*auto/s);
+ assert.match(css,/@media \(max-width: 520px\)[\s\S]*\.stpd-script-layout\s*\{[^}]*grid-template-columns:\s*1fr/s);
+});

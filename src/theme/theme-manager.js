@@ -49,6 +49,54 @@ textarea {
 .stpd-world-book,
 .stpd-diagnostic-record,
 .stpd-diagnostic-check { border-color: var(--stpd-border); }
+
+/* 剧本库与运行控制 */
+.stpd-script-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+}
+.stpd-script-toolbar button { flex: 0 0 auto; white-space: nowrap; }
+.stpd-script-layout {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+  gap: var(--stpd-gap);
+  min-width: 0;
+  min-height: 0;
+}
+.stpd-script-list,
+.stpd-script-detail {
+  min-width: 0;
+  overflow-y: auto;
+}
+.stpd-script-list { display: grid; align-content: start; gap: 6px; }
+.stpd-script-list-item { width: 100%; min-width: 0; border-radius: 4px; }
+.stpd-script-detail,
+.stpd-script-section,
+.stpd-script-items { min-width: 0; overflow-wrap: anywhere; }
+
+/* 单人/多人模式与人物编辑 */
+.stpd-cast-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.stpd-cast-members { display: grid; gap: 6px; min-width: 0; }
+.stpd-cast-member {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border-radius: 4px;
+}
+
+@media (max-width: 520px) {
+  .stpd-script-layout { grid-template-columns: 1fr; }
+  .stpd-script-list { max-height: 150px; }
+  .stpd-cast-member { grid-template-columns: minmax(0, 1fr) auto; }
+}
 `;}
 function matchingBrace(text,start){let depth=0;for(let i=start;i<text.length;i+=1){if(text[i]==='{')depth+=1;else if(text[i]==='}'&&--depth===0)return i;}return text.length-1;}
 function scopeSelector(selector){const leading=selector.match(/^\s*/)[0];const trimmed=selector.trim();return trimmed.startsWith(ROOT)?`${leading}${trimmed}`:`${leading}${ROOT} ${trimmed}`;}
