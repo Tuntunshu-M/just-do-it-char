@@ -10,7 +10,7 @@ import { createScheduler } from './src/director/scheduler.js';
 import { createCssTemplate, createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
-import { correctCast, lockCast } from './src/cast/cast-manager.js';
+import { addCastMember, correctCast, lockCast, removeCastMember, setCastMode, setLeadMember, updateCastMember } from './src/cast/cast-manager.js';
 import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 import { selectedWorldEntries } from './src/world-info/selection.js';
 import { runDiagnostics } from './src/diagnostics/inspector.js';
@@ -303,6 +303,11 @@ export function initializeExtension() {
       changeDirection: async (direction) => { await engine.changeDirection(chatKey, state.characterFingerprint, { direction }); refresh(); },
       lockCast: async (locked) => { state.cast = lockCast(state.cast, locked); await store.saveChat(state); refresh(); },
       correctCast: async (correction) => { state.cast = correctCast(state.cast, correction); await store.saveChat(state); refresh(); },
+      setCastMode: async (mode) => { state.cast = setCastMode(state.cast, mode); await store.saveChat(state); refresh(); },
+      addCastMember: async (member) => { state.cast = addCastMember(state.cast, member); await store.saveChat(state); refresh(); },
+      updateCastMember: async (id, changes) => { state.cast = updateCastMember(state.cast, id, changes); await store.saveChat(state); refresh(); },
+      removeCastMember: async (id) => { state.cast = removeCastMember(state.cast, id); await store.saveChat(state); refresh(); },
+      setLeadMember: async (id) => { state.cast = setLeadMember(state.cast, id); await store.saveChat(state); refresh(); },
       isGroupChat: () => Boolean(hostAdapter.getContext().groupId ?? hostAdapter.getContext().group_id),
       testConnection: (connection) => directorClient.testConnection(connection),
       runDiagnostics: () => runDiagnostics({ adapter: hostAdapter, settings, state }),

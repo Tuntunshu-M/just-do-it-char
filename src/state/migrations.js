@@ -32,6 +32,12 @@ export function migrateState(raw = {}) {
     raw,
   );
   migrated.schemaVersion = SCHEMA_VERSION;
+  const legacyMembers = cloneValue(raw.cast?.members ?? []);
+  if (!raw.cast?.singleSelection && raw.cast?.mode !== 'multi') migrated.cast.singleSelection = legacyMembers[0] ?? null;
+  if (!raw.cast?.multiMembers && raw.cast?.mode === 'multi') migrated.cast.multiMembers = legacyMembers;
+  migrated.cast.members = migrated.cast.mode === 'multi'
+    ? cloneValue(migrated.cast.multiMembers ?? [])
+    : (migrated.cast.singleSelection ? [cloneValue(migrated.cast.singleSelection)] : []);
   migrated.scripts ??= [];
   if (raw.activeEvent) {
     const id = raw.activeEvent.id ?? `legacy-${raw.chatKey ?? 'chat'}`;

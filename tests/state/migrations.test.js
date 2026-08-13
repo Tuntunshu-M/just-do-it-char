@@ -53,3 +53,14 @@ test('migration converts a legacy active event into one repository script once',
   assert.equal(second.activeScriptId, 'event-1');
   assert.equal(second.selectedScriptId, 'event-1');
 });
+
+test('migration preserves legacy cast as explicit dual-mode data', () => {
+  const multi = migrateState({ cast: { mode: 'multi', members: [{ id: 'b', name: '角色 B' }], leadId: 'b' } });
+  assert.equal(multi.cast.mode, 'multi');
+  assert.deepEqual(multi.cast.multiMembers, [{ id: 'b', name: '角色 B' }]);
+  assert.deepEqual(multi.cast.members, multi.cast.multiMembers);
+
+  const single = migrateState({ cast: { mode: 'single', members: [{ id: 'a', name: '角色 A' }] } });
+  assert.deepEqual(single.cast.singleSelection, { id: 'a', name: '角色 A' });
+  assert.deepEqual(single.cast.members, [single.cast.singleSelection]);
+});
