@@ -122,3 +122,10 @@ test('expanding a world book preserves the current panel scroll position', async
 
   assert.equal(body.scrollTop, 210);
 });
+
+test('world page exposes selection policy and read-only boundary', () => {
+  const doc = createDocument(); const body = doc.createElement('section');
+  renderWorldInfoView({ body, settings: { context: { worldInfo: true, worldInfoBooks: {}, worldInfoSelectionPolicy: 'preserve' } }, services: { worldInfoNames: () => [] }, saveSettings() {}, rerender() {} });
+  const text = all(body).map((node) => node.textContent).join('|');
+  assert.match(text, /始终保留选择|进入新聊天时取消全部勾选|只读取/);
+});

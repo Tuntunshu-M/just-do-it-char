@@ -16,21 +16,27 @@ function harness({ state, response, settings = {} } = {}) {
     store: { loadGlobal: () => global, loadChat: () => current, saveChat: async () => {} },
     client: { requestDirector: async ({ intent }) => { order.push(intent.type); return typeof response === 'function' ? response(intent) : response; } },
     policy: { evaluatePolicy: () => ({ allowed: true }) },
+    repository: {
+      createDraft: async (_chat, _fingerprint, plan) => { const script = { ...plan, id: 'script-1', status: 'draft' }; current.scripts = [script]; current.selectedScriptId = script.id; order.push('draft'); return script; },
+    },
     engine: {
-      activatePlan: async (_chat, _fingerprint, plan) => { current.activeEvent = { ...plan, status: 'awaiting-user', currentStepIndex: 0, pendingTurn: null }; current.status = 'awaiting-user'; order.push('activate'); return current; },
       applyReaction: async () => order.push('react'),
     },
     collector: async () => ({ cast: {}, worldInfo: [] }),
     onNotice: (message) => order.push(`notice:${message}`),
+    onScriptCreated: (id) => order.push(`open:${id}`),
   });
   return { pipeline, order, state: current };
 }
 
-test('planning stores an outline, not a host reply, and sends the short notice', async () => {
-  const { pipeline, order, state } = harness({ response: { event: { title: 'Trip', category: 'daily', steps: [{ id: 's1', goal: 'invite' }] }, foreshadowing: [], facts: [], ruleLedgerUpdate: {} } });
-  await pipeline.manualCreate('');
-  assert.equal(state.activeEvent.title, 'Trip');
-  assert.ok(order.includes('activate'));
+test('planning stores a draft script without activating it and opens its detail', async () => {
+  const { pipeline, order, state } = harness({ response: { event: { title: 'Trip', category: 'daily', premise: 'Start', conflict: 'Conflict', climax: 'Climax', ending: 'Ending', steps: [{ id: 's1', goal: 'invite' }] }, foreshadowing: [], facts: [], ruleLedgerUpdate: {} } });
+  const result = await pipeline.manualCreate('');
+  assert.equal(state.scripts[0].title, 'Trip');
+  assert.equal(state.activeEvent, null);
+  assert.equal(result.scriptId, 'script-1');
+  assert.ok(order.includes('draft'));
+  assert.ok(order.includes('open:script-1'));
   assert.ok(order.some((item) => item.startsWith('notice:')));
   assert.equal(order.includes('generate'), false);
   assert.equal(order.some((item) => item.startsWith('inject:')), false);

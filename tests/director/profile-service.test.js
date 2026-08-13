@@ -58,3 +58,17 @@ test('failed refresh preserves the old profile and returns to stale confirmation
   assert.equal(result.content, 'cached');
   assert.equal(result.error, 'offline');
 });
+
+test('first multi switch extracts members and relations once from selected sources', async () => {
+  let calls = 0;
+  const service = createProfileService({ client: { requestDirector: async () => {
+    calls += 1;
+    return { content: '群像侧写', members: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }, { id: 'd', name: 'D' }], relations: [{ from: 'b', to: 'c', type: '竞争' }], citations: [] };
+  } } });
+  const state = { chatKey: 'chat', cast: { mode: 'multi', members: [], multiMembers: [] }, personalityProfile: { status: 'empty', content: '' } };
+  await service.switchModeAndEnsureProfile({ state, card: { name: 'A' }, cast: state.cast, entries: [{ name: 'B/C/D', content: 'B C D' }], connection: { mode: 'independent', endpoint: 'x', model: 'm' } });
+  await service.switchModeAndEnsureProfile({ state, card: { name: 'A' }, cast: state.cast, entries: [], connection: { mode: 'independent', endpoint: 'x', model: 'm' } });
+  assert.equal(calls, 1);
+  assert.deepEqual(state.cast.multiMembers.map((member) => member.name), ['A', 'B', 'C', 'D']);
+  assert.equal(state.cast.relations[0].type, '竞争');
+});

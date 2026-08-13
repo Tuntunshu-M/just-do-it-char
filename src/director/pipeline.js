@@ -8,7 +8,7 @@ function generationState(phase, previous = {}, error = '') {
   return { ...previous, phase, startedAt: previous.startedAt ?? new Date().toISOString(), finishedAt: finished ? new Date().toISOString() : null, error };
 }
 
-export function createDirectorPipeline({ adapter, store, client, policy, personality, engine, collector, scheduler, onProgress, onOutcome, onNotice }) {
+export function createDirectorPipeline({ adapter, store, client, policy, personality, engine, repository, collector, scheduler, onProgress, onOutcome, onNotice, onScriptCreated }) {
   const inFlight = new Map();
   let generation = 0;
 
@@ -85,13 +85,13 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       }
       const plan = { ...result.event, foreshadowing: result.foreshadowing, ruleLedgerUpdate: result.ruleLedgerUpdate, facts: result.facts };
       stage = 'commit'; await persist(state, stage);
-      const committed = await engine.activatePlan(chatKey, state.characterFingerprint, plan);
-      if (committed?.chatKey) Object.assign(state, committed);
-      else if (committed) Object.assign(state, committed);
-      await persist(state, state.status === 'completed' ? 'completed' : 'awaiting-user');
-      await finish(state, diagnostic, stage, 'success', '事件大纲已准备', secrets);
-      onNotice?.('TA似乎悄悄准备了什么');
-      return { ...result, status: 'planned' };
+      const script = await repository.createDraft(chatKey, state.characterFingerprint, plan);
+      Object.assign(state, store.loadChat(chatKey));
+      await persist(state, 'completed');
+      await finish(state, diagnostic, stage, 'success', '剧本已准备', secrets);
+      onScriptCreated?.(script.id);
+      onNotice?.('新剧本已准备');
+      return { ...result, status: 'planned', scriptId: script.id };
     } catch (error) {
       await persist(state, 'failed', error.message);
       await finish(state, diagnostic, stage, 'failed', formatDirectorDiagnostic(error), secrets);

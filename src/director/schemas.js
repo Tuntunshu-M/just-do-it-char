@@ -27,6 +27,9 @@ export function validateDirectorResult(value, intent = {}) {
     requireType(CATEGORIES.has(value.event.category), 'event category is unknown');
     requireType(Array.isArray(value.event.steps), 'event steps are required');
     if (intent.type === 'plan-event') {
+      for (const field of ['premise', 'conflict', 'climax', 'ending']) {
+        requireType(typeof value.event[field] === 'string' && value.event[field].trim(), `event ${field} is required`);
+      }
       requireType(value.event.steps.length >= 5 && value.event.steps.length <= 7, 'event steps must contain 5 to 7 stages');
       const stepIds = value.event.steps.map((step) => step?.id);
       requireType(stepIds.every((id) => typeof id === 'string' && id), 'event step id is required');
@@ -91,13 +94,22 @@ export function validateStepResult(value) {
   return value;
 }
 
-export function validateProfileResult(value) {
+export function validateProfileResult(value, intent = {}) {
   requireType(value && typeof value === 'object' && !Array.isArray(value), 'profile root must be an object');
   requireType(typeof value.content === 'string' && value.content.trim(), 'profile content is required');
   requireType(Array.isArray(value.citations), 'profile citations must be an array');
   for (const citation of value.citations) {
     requireType(typeof citation?.source === 'string' && citation.source, 'profile citation source is required');
     requireType(typeof citation?.excerpt === 'string', 'profile citation excerpt is required');
+  }
+  if (intent.castMode === 'multi') {
+    requireType(Array.isArray(value.members), 'profile members must be an array');
+    requireType(Array.isArray(value.relations), 'profile relations must be an array');
+    for (const member of value.members) {
+      requireType(typeof member?.id === 'string' && member.id, 'profile member id is required');
+      requireType(typeof member?.name === 'string' && member.name, 'profile member name is required');
+      requireType(typeof member?.knowledgeBoundary === 'string', 'profile member knowledgeBoundary is required');
+    }
   }
   return value;
 }
@@ -122,7 +134,7 @@ export function parseDirectorResponse(content, intent = 'plan-event') {
   const intentType = typeof intent === 'string' ? intent : intent?.type ?? 'plan-event';
   if (intentType === 'evaluate-reaction') return validateReactionResult(value);
   if (intentType === 'prepare-step') return validateStepResult(value);
-  if (intentType === 'profile-character') return validateProfileResult(value);
+  if (intentType === 'profile-character') return validateProfileResult(value, typeof intent === 'string' ? {} : intent);
   return validateDirectorResult(normalizeDirectorResult(value), typeof intent === 'string' ? { type: intent } : intent);
 }
 

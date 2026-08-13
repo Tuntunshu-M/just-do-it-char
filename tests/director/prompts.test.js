@@ -34,6 +34,7 @@ test('prompt prioritizes a complete compact JSON object and shows a valid create
   assert.match(system.content, /缩短.*文字/is);
   assert.doesNotMatch(system.content, /900.*字/);
   assert.match(system.content, /"event"\s*:\s*\{[\s\S]*"title"\s*:/);
+  for (const field of ['premise', 'conflict', 'climax', 'ending']) assert.match(system.content, new RegExp(`"${field}"\\s*:`));
   assert.match(system.content, /无法.*完整.*"event"\s*:\s*null/is);
 });
 
@@ -45,6 +46,14 @@ test('profile intent uses a profile-only contract with knowledge fog', () => {
   assert.doesNotMatch(system.content, /"event"\s*:/);
   assert.match(system.content, /明确知道.*合理推断.*明确不知道/s);
   assert.match(system.content, /世界书.*不等于.*全知/s);
+});
+
+test('multi profile contract extracts all evidenced candidates and relations', () => {
+  const [system] = buildDirectorMessages({ cast: { mode: 'multi' } }, { type: 'profile-character', castMode: 'multi' });
+  assert.match(system.content, /"members"\s*:/);
+  assert.match(system.content, /"relations"\s*:/);
+  assert.match(system.content, /角色卡.*世界书/);
+  assert.match(system.content, /认知边界/);
 });
 
 test('event intent composes multi-card stages, category tones, and anti-conspiracy rules', () => {

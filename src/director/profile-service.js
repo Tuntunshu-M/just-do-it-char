@@ -33,6 +33,7 @@ function fingerprint(value) {
 export function createProfileService({ client }) {
   const inFlight = new Map();
   async function generate({ state, card, cast, entries, connection }) {
+    const optionsChatKey = state.chatKey;
     const sources = profileSources(card, entries, cast);
     const sourceFingerprint = fingerprint(sources);
     const previous = { ...state.personalityProfile };
@@ -42,11 +43,19 @@ export function createProfileService({ client }) {
     }
     state.personalityProfile = { ...state.personalityProfile, status: 'generating', error: '', activeFingerprint: sourceFingerprint };
     try {
-      const result = await client.requestDirector({ context: sources, intent: { type: 'profile-character' } }, connection);
+      const castMode = cast?.mode ?? 'single';
+      const result = await client.requestDirector({ context: sources, intent: { type: 'profile-character', castMode } }, connection);
+      if (state.chatKey !== optionsChatKey || state.personalityProfile.activeFingerprint !== sourceFingerprint) return state.personalityProfile;
       state.personalityProfile = {
         status: 'ready', fingerprint: sourceFingerprint, activeFingerprint: sourceFingerprint, ignoredFingerprint: '', content: result.content,
         citations: result.citations, generatedAt: new Date().toISOString(), error: '',
       };
+      if (castMode === 'multi' && Array.isArray(result.members)) {
+        state.cast.multiMembers = result.members;
+        state.cast.members = result.members;
+        state.cast.relations = result.relations ?? [];
+        state.cast.multiProfileInitialized = true;
+      }
     } catch (error) {
       state.personalityProfile = previous.content
         ? { ...previous, status: 'stale-pending', activeFingerprint: sourceFingerprint, error: error.message }
@@ -75,6 +84,12 @@ export function createProfileService({ client }) {
       const key = options.state.chatKey ?? 'profile';
       if (!inFlight.has(key)) inFlight.set(key, generate(options).finally(() => inFlight.delete(key)));
       return inFlight.get(key);
+    },
+    async switchModeAndEnsureProfile(options) {
+      const cast = options.state.cast ?? options.cast;
+      if (cast?.mode !== 'multi') return options.state.personalityProfile;
+      if (cast.multiProfileInitialized) return options.state.personalityProfile;
+      return generate({ ...options, cast });
     },
     ignoreProfile({ state, fingerprint: ignoredFingerprint }) {
       const profile = state.personalityProfile ?? {};

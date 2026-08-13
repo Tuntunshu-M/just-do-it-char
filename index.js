@@ -10,13 +10,16 @@ import { createScheduler } from './src/director/scheduler.js';
 import { createCssTemplate, createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
-import { correctCast, lockCast } from './src/cast/cast-manager.js';
+import { addCastMember, correctCast, lockCast, removeCastMember, setCastMode, setLeadMember, updateCastMember } from './src/cast/cast-manager.js';
 import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 import { selectedWorldEntries } from './src/world-info/selection.js';
 import { runDiagnostics } from './src/diagnostics/inspector.js';
 import { formatDiagnosticReport } from './src/diagnostics/records.js';
 import { classifyDirectorFailure } from './src/director/failure-reasons.js';
 import { createProfileService } from './src/director/profile-service.js';
+import { createScriptRepository } from './src/scripts/script-repository.js';
+import { createScriptRuntime } from './src/scripts/script-runtime.js';
+import { applyWorldSelectionPolicy } from './src/world-info/policy.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -114,6 +117,8 @@ export function initializeExtension() {
   let chatKey = hostAdapter.getCurrentChatKey();
   let state = chatKey ? store.loadChat(chatKey) : createDirectorState(null);
   const engine = createEventEngine(store);
+  const repository = createScriptRepository(store);
+  const scriptRuntime = createScriptRuntime({ store, repository });
   const theme = createThemeManager(document, { save: async (value) => {
     settings.theme = value;
     await store.saveGlobal(settings);
@@ -129,6 +134,7 @@ export function initializeExtension() {
     client: directorClient,
     policy: { evaluatePolicy },
     engine,
+    repository,
     collector: collectDirectorContext,
     scheduler: createScheduler(),
     personality: {
@@ -147,6 +153,10 @@ export function initializeExtension() {
       rerender();
     },
     onNotice: notice,
+    onScriptCreated: (scriptId) => {
+      refresh();
+      consoleInstance?.openTab('scripts');
+    },
   });
   const refresh = () => {
     settings = store.loadGlobal();
@@ -197,6 +207,12 @@ export function initializeExtension() {
     await store.saveChat(state);
     if (notify && result.error === '还没连接副 API') notice('还没连接副 API');
     rerender();
+  };
+  const markProfileFromCastChange = async () => {
+    const entries = await loadSelectedWorldBooks();
+    await profileService.ensureProfile({ ...profileOptions(), entries });
+    await store.saveChat(state);
+    refresh();
   };
   const downloadSnapshot = (options) => {
     const snapshot = exportSnapshot(state, options);
@@ -273,6 +289,17 @@ export function initializeExtension() {
         refresh();
       },
       onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
+      selectScript: async (scriptId) => { await repository.select(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      performScript: async (scriptId) => {
+        await scriptRuntime.perform(chatKey, state.characterFingerprint, scriptId, {
+          confirmConflict: (current, next) => hostAdapter.showConfirm(`“${current.title}”正在演出。开演“${next.title}”会停止当前剧本，但保留历史进度。是否继续？`),
+        });
+        refresh();
+      },
+      pauseScript: async (scriptId) => { await scriptRuntime.pause(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      resumeScript: async (scriptId) => { await scriptRuntime.resume(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      changeScriptDirection: async (scriptId, direction) => { await scriptRuntime.changeDirection(chatKey, state.characterFingerprint, scriptId, direction); refresh(); },
+      stopScript: async (scriptId) => { await scriptRuntime.stop(chatKey, state.characterFingerprint, scriptId); refresh(); },
       pauseEvent: async () => { await engine.pause(chatKey, state.characterFingerprint); refresh(); },
       resumeEvent: async () => { await engine.resume(chatKey, state.characterFingerprint, { source: 'manual' }); refresh(); },
       rerollEvent: () => pipeline.regeneratePlan(),
@@ -283,6 +310,21 @@ export function initializeExtension() {
       changeDirection: async (direction) => { await engine.changeDirection(chatKey, state.characterFingerprint, { direction }); refresh(); },
       lockCast: async (locked) => { state.cast = lockCast(state.cast, locked); await store.saveChat(state); refresh(); },
       correctCast: async (correction) => { state.cast = correctCast(state.cast, correction); await store.saveChat(state); refresh(); },
+      setCastMode: async (mode) => {
+        state.cast = setCastMode(state.cast, mode);
+        await store.saveChat(state);
+        if (mode === 'multi' && !state.cast.multiProfileInitialized) {
+          const entries = await loadSelectedWorldBooks();
+          const result = await profileService.switchModeAndEnsureProfile({ ...profileOptions(), entries });
+          await store.saveChat(state);
+          if (result?.error === '还没连接副 API') notice('还没连接副 API');
+        } else await markProfileFromCastChange();
+        refresh();
+      },
+      addCastMember: async (member) => { state.cast = addCastMember(state.cast, member); await store.saveChat(state); await markProfileFromCastChange(); },
+      updateCastMember: async (id, changes) => { state.cast = updateCastMember(state.cast, id, changes); await store.saveChat(state); await markProfileFromCastChange(); },
+      removeCastMember: async (id) => { state.cast = removeCastMember(state.cast, id); await store.saveChat(state); await markProfileFromCastChange(); },
+      setLeadMember: async (id) => { state.cast = setLeadMember(state.cast, id); await store.saveChat(state); await markProfileFromCastChange(); },
       isGroupChat: () => Boolean(hostAdapter.getContext().groupId ?? hostAdapter.getContext().group_id),
       testConnection: (connection) => directorClient.testConnection(connection),
       runDiagnostics: () => runDiagnostics({ adapter: hostAdapter, settings, state }),
@@ -331,9 +373,13 @@ export function initializeExtension() {
   else ensureCurrentProfile().catch((error) => console.error('[导演时间] profile', error));
   const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
   unsubscribers.push(hostAdapter.on(chatEvent, () => {
+    const previousChatKey = chatKey;
     pipeline.cancel();
     pipeline.clearTurnInjection({ resetTurn: true }).catch((error) => console.error('[导演时间]', error));
     refresh();
+    if (applyWorldSelectionPolicy(settings, previousChatKey, chatKey)) {
+      store.saveGlobal(settings).catch((error) => console.error('[导演时间] world selection policy', error));
+    }
     if (isGroupChat()) state.status = 'paused';
     rerender();
     worldBookCache.clear();

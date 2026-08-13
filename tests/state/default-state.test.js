@@ -20,6 +20,7 @@ test('global settings keep connection secrets outside chat state', () => {
   assert.equal(settings.context.worldInfoMode, 'all');
   assert.equal(settings.theme.mode, 'night');
   assert.deepEqual(settings.context.worldInfoBooks, {});
+  assert.equal(settings.context.worldInfoSelectionPolicy, 'preserve');
   assert.deepEqual(settings.categories, {
     daily: { enabled: true, weight: 40 },
     crisis: { enabled: true, weight: 35 },
@@ -40,9 +41,9 @@ test('director state has isolated serializable event data', () => {
   assert.equal(first.characterFingerprint, 'card-a');
   assert.doesNotThrow(() => JSON.stringify(first));
   assert.deepEqual(Object.keys(first).sort(), [
-    'activeEvent', 'cast', 'characterFingerprint', 'chatKey', 'cooldowns',
+    'activeEvent', 'activeScriptId', 'cast', 'characterFingerprint', 'chatKey', 'cooldowns',
     'counters', 'foreshadowing', 'historySummary', 'pendingTransaction',
     'preference', 'ruleLedger', 'sceneSafety', 'schemaVersion', 'status', 'directorNotes', 'generation',
-    'updatedAt', 'diagnostics', 'personalityProfile',
+    'updatedAt', 'diagnostics', 'personalityProfile', 'scripts', 'selectedScriptId',
   ].sort());
 });

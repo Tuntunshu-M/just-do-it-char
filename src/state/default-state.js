@@ -54,6 +54,7 @@ export function createGlobalSettings() {
       worldInfoMode: 'all',
       worldInfoEntries: [],
       worldInfoBooks: {},
+      worldInfoSelectionPolicy: 'preserve',
       messageLimit: 24,
     },
     defaults: {
@@ -77,7 +78,10 @@ export function createDirectorState(chatKey = null, fingerprint = null) {
     chatKey,
     characterFingerprint: fingerprint,
     status: 'idle',
-    cast: { mode: 'single', locked: false, members: [], leadId: null },
+    cast: { mode: 'single', locked: false, members: [], singleSelection: null, multiMembers: [], leadId: null },
+    scripts: [],
+    selectedScriptId: null,
+    activeScriptId: null,
     activeEvent: null,
     personalityProfile: {
       status: 'empty',

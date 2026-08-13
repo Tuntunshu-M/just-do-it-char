@@ -30,6 +30,14 @@ test('extension reloads chat state and clears the world-book cache after chat ch
   assert.doesNotMatch(source, /const chatKey = hostAdapter\.getCurrentChatKey/);
 });
 
+test('multi mode switch generates candidates from selected sources while edits only mark profile stale', async () => {
+  const source = await (await import('node:fs/promises')).readFile(new URL('../../index.js', import.meta.url), 'utf8');
+  assert.match(source, /switchModeAndEnsureProfile\(\{ \.\.\.profileOptions\(\), entries/);
+  assert.match(source, /loadSelectedWorldBooks\(\)/);
+  assert.match(source, /markProfileFromCastChange/);
+  assert.doesNotMatch(source, /connection:\s*\{[^}]*mode:\s*'main'/s);
+});
+
 test('event outcomes produce immediate guidance for failed and unsuccessful attempts', async () => {
   const { eventOutcomeNotice } = await import('../../index.js');
 

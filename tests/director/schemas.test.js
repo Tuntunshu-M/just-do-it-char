@@ -48,10 +48,16 @@ test('reaction, step, and profile contracts are independent from event planning'
   assert.throws(() => validateReactionResult({ decision: 'invalid' }), /decision/i);
 });
 
+test('multi profile requires independently identified members and relations', () => {
+  const profile = { content: '群像', members: [{ id: 'a', name: 'A', knowledgeBoundary: '只知道公开信息' }], relations: [], citations: [] };
+  assert.doesNotThrow(() => validateProfileResult(profile, { castMode: 'multi' }));
+  assert.throws(() => validateProfileResult({ content: '群像', citations: [] }, { castMode: 'multi' }), /members/);
+});
+
 function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
   return {
     event: {
-      title: 'Plan', category,
+      title: 'Plan', category, premise: '完整开端', conflict: '主要矛盾', climax: '高潮事件', ending: '结局走向',
       steps: Array.from({ length: steps }, (_, index) => ({ id: `s${index + 1}`, goal: `goal ${index + 1}` })),
     },
     feedback: { classification: 'neutral', confidence: 1, reason: 'ok' },
@@ -65,6 +71,13 @@ function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
     ruleLedgerUpdate: {}, injection: 'Prepare the first stage.',
   };
 }
+
+test('planned scripts require outline conflict climax and ending', () => {
+  for (const field of ['premise', 'conflict', 'climax', 'ending']) {
+    const result = plannedResult(); delete result.event[field];
+    assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), new RegExp(field));
+  }
+});
 
 test('event schema enforces five to seven unique stages', () => {
   assert.throws(() => validateDirectorResult(plannedResult({ steps: 4 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /5 to 7/);
