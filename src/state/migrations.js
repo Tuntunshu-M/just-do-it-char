@@ -32,6 +32,35 @@ export function migrateState(raw = {}) {
     raw,
   );
   migrated.schemaVersion = SCHEMA_VERSION;
+  migrated.scripts ??= [];
+  if (raw.activeEvent) {
+    const id = raw.activeEvent.id ?? `legacy-${raw.chatKey ?? 'chat'}`;
+    const existing = migrated.scripts.find((script) => script.id === id);
+    if (!existing) {
+      const now = raw.activeEvent.createdAt ?? raw.updatedAt ?? new Date().toISOString();
+      migrated.scripts.push({
+        id,
+        title: raw.activeEvent.title ?? '未命名剧本',
+        category: raw.activeEvent.category ?? '',
+        premise: raw.activeEvent.premise ?? '',
+        conflict: raw.activeEvent.conflict ?? '',
+        climax: raw.activeEvent.climax ?? '',
+        ending: raw.activeEvent.ending ?? '',
+        steps: cloneValue(raw.activeEvent.steps ?? []),
+        foreshadowing: cloneValue(raw.activeEvent.foreshadowing ?? []),
+        facts: cloneValue(raw.activeEvent.facts ?? []),
+        revisions: cloneValue(raw.activeEvent.revisions ?? []),
+        status: raw.activeEvent.status === 'awaiting-user' ? 'running' : (raw.activeEvent.status ?? 'running'),
+        currentStepIndex: raw.activeEvent.currentStepIndex ?? 0,
+        pendingTurn: cloneValue(raw.activeEvent.pendingTurn ?? null),
+        createdAt: now,
+        updatedAt: raw.activeEvent.updatedAt ?? now,
+      });
+    }
+    migrated.selectedScriptId ??= id;
+    migrated.activeScriptId ??= id;
+    migrated.activeEvent = migrated.scripts.find((script) => script.id === migrated.activeScriptId) ?? null;
+  }
   return migrated;
 }
 
