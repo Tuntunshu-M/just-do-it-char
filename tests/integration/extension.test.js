@@ -112,7 +112,7 @@ test('native menu entry mounts as its own host menu item and opens when clicked'
   }
 });
 
-test('native menu entry prefers the visible modern extensions drawer', async () => {
+test('native menu entry ignores the settings drawer and mounts in the wand menu', async () => {
   const { mountWandEntry } = await import('../../index.js');
   const byId = new Map();
   const make = (tagName, rect = { width: 0, height: 0 }) => {
@@ -138,26 +138,26 @@ test('native menu entry prefers the visible modern extensions drawer', async () 
   };
   const oldMenu = make('div'); oldMenu.id = 'extensionsMenu';
   const drawer = make('div', { width: 300, height: 500 }); drawer.className = 'drawer';
-  const modernMenu = make('div'); modernMenu.id = 'rm_extensions_block'; modernMenu.drawer = drawer;
+  const settingsDrawer = make('div'); settingsDrawer.id = 'rm_extensions_block'; settingsDrawer.drawer = drawer;
   const previousDocument = globalThis.document;
   const previousAnimationFrame = globalThis.requestAnimationFrame;
   globalThis.document = {
     createElement: (tagName) => make(tagName),
-    querySelectorAll: () => [modernMenu, oldMenu],
+    querySelectorAll: () => [settingsDrawer, oldMenu],
     querySelector: (selector) => byId.get(selector.slice(1)) ?? null,
   };
   globalThis.requestAnimationFrame = (callback) => { callback(); return 1; };
   try {
     mountWandEntry(() => {});
-    assert.equal(modernMenu.children[0].id, 'stpd-menu-container');
-    assert.equal(oldMenu.children.length, 0);
+    assert.equal(oldMenu.children[0].id, 'stpd-menu-container');
+    assert.equal(settingsDrawer.children.length, 0);
   } finally {
     globalThis.document = previousDocument;
     globalThis.requestAnimationFrame = previousAnimationFrame;
   }
 });
 
-test('native menu entry moves into the modern extensions drawer when it appears later', async () => {
+test('native menu entry stays in the wand menu when the settings drawer appears later', async () => {
   const { mountWandEntry } = await import('../../index.js');
   const byId = new Map();
   const make = (tagName) => {
@@ -189,13 +189,13 @@ test('native menu entry moves into the modern extensions drawer when it appears 
     };
   };
   const oldMenu = make('div'); oldMenu.id = 'extensionsMenu';
-  const modernMenu = make('div'); modernMenu.id = 'rm_extensions_block';
-  let modernAvailable = false;
+  const settingsDrawer = make('div'); settingsDrawer.id = 'rm_extensions_block';
+  let settingsAvailable = false;
   const previousDocument = globalThis.document;
   const previousAnimationFrame = globalThis.requestAnimationFrame;
   globalThis.document = {
     createElement: (tagName) => make(tagName),
-    querySelectorAll: () => modernAvailable ? [modernMenu, oldMenu] : [oldMenu],
+    querySelectorAll: () => settingsAvailable ? [settingsDrawer, oldMenu] : [oldMenu],
     querySelector: (selector) => byId.get(selector.slice(1)) ?? null,
   };
   globalThis.requestAnimationFrame = (callback) => { callback(); return 1; };
@@ -204,12 +204,12 @@ test('native menu entry moves into the modern extensions drawer when it appears 
     mountWandEntry(() => { opened += 1; });
     assert.equal(byId.get('stpd-menu-container').parentElement, oldMenu);
 
-    modernAvailable = true;
+    settingsAvailable = true;
     mountWandEntry(() => { opened += 1; });
     const entry = byId.get('stpd-menu-entry');
     entry.dispatchEvent({ type: 'click', preventDefault() {} });
 
-    assert.equal(byId.get('stpd-menu-container').parentElement, modernMenu);
+    assert.equal(byId.get('stpd-menu-container').parentElement, oldMenu);
     assert.equal(opened, 1);
   } finally {
     globalThis.document = previousDocument;
