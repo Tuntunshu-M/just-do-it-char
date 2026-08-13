@@ -60,3 +60,12 @@ test('collector uses resolved installed-world-book entries without collapsing du
     { id: 'Book B::7', bookName: 'Book B' },
   ]);
 });
+
+test('collector projects only the active script current stage', async () => {
+  const active = { id: 'p', title: '计划', currentStepIndex: 1, steps: [{ id: 'past' }, { id: 'now' }, { id: 'future', secret: '不可泄露' }], foreshadowing: [{ id: 'later' }] };
+  const context = await collectDirectorContext({ getCharacterData: () => null, getMessages: () => [], getContext: () => ({}) }, {
+    chatKey: 'c', scripts: [active], activeScriptId: 'p', activeEvent: active, cast: {}, preference: {}, sceneSafety: {}, ruleLedger: {}, foreshadowing: [],
+  }, { genre: {}, context: { worldInfo: false, messageLimit: 2 } });
+  assert.deepEqual(context.activeEvent.steps.map((step) => step.id), ['now']);
+  assert.equal(JSON.stringify(context).includes('不可泄露'), false);
+});

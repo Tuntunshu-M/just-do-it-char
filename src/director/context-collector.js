@@ -67,6 +67,19 @@ export async function collectDirectorContext(adapter, state, settings) {
       : adapter.getWorldInfoEntries?.() ?? host.worldInfo;
   const worldInfoEntries = compactWorldInfo(rawWorldInfo, options);
   const personalityProfile = buildPersonalityProfile(card, worldInfoEntries, options);
+  const storedActive = state.scripts?.find((script) => script.id === state.activeScriptId) ?? state.activeEvent;
+  const currentStep = storedActive?.steps?.[storedActive.currentStepIndex ?? 0];
+  const activeEvent = storedActive ? {
+    id: storedActive.id,
+    title: storedActive.title,
+    category: storedActive.category,
+    premise: storedActive.premise,
+    conflict: storedActive.conflict,
+    direction: storedActive.direction ?? '',
+    currentStepIndex: storedActive.currentStepIndex ?? 0,
+    steps: currentStep ? [structuredClone(currentStep)] : [],
+    facts: structuredClone(storedActive.facts ?? []),
+  } : null;
   return {
     chatKey: state.chatKey,
     characterFingerprint: state.characterFingerprint,
@@ -76,7 +89,7 @@ export async function collectDirectorContext(adapter, state, settings) {
     directorNotes,
     messages,
     cast: state.cast,
-    activeEvent: state.activeEvent,
+    activeEvent,
     foreshadowing: state.foreshadowing,
     ruleLedger: state.ruleLedger,
     preferences: state.preference,
