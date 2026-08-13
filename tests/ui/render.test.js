@@ -16,7 +16,7 @@ test('console module exports lifecycle contract', async () => {
   const module = await import('../../src/ui/director-console.js');
   assert.equal(typeof module.createDirectorConsole, 'function');
   const text = await source();
-  for (const tab of ['事件', '伏笔', '人物', '世界书', '偏好', '副本']) assert.match(text, new RegExp(tab));
+  for (const tab of ['事件', '剧本', '人物', '世界书', '偏好', '副本']) assert.match(text, new RegExp(tab));
   const consoleText = await uiSource('director-console.js');
   assert.match(consoleText, /class: 'stpd-settings'/);
   assert.match(consoleText, /aria-label': '打开设置'/);
@@ -68,7 +68,7 @@ test('console exposes selective snapshot migration', async () => {
 
 test('console delegates views and dialogs to modular UI files', async () => {
   const text = await source();
-  for (const moduleName of ['event', 'cast', 'preferences', 'connection', 'world-info', 'snapshots', 'appearance', 'diagnostics']) {
+  for (const moduleName of ['event', 'scripts', 'cast', 'preferences', 'connection', 'world-info', 'snapshots', 'appearance', 'diagnostics']) {
     assert.match(text, new RegExp(`views/${moduleName}\\.js`));
   }
   for (const moduleName of ['manual-event', 'snapshot-import', 'cast-correction', 'confirm']) {

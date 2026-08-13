@@ -44,3 +44,11 @@ test('blank event idea opens a random-event preview and submits an empty prompt'
   await all(body).find((node) => node.tagName === 'button' && node.textContent === '确认创建').onclick();
   assert.deepEqual(calls, [['', true]]);
 });
+
+test('event page contains generation controls but no script outline or runtime controls', () => {
+  const doc = createDocument(); const body = doc.createElement('section');
+  renderEventView({ body, state: { activeEvent: { title: '旧事件', premise: '不应显示' }, directorNotes: '' }, services: {}, saveState() {} });
+  const text = all(body).map((node) => node.textContent).join('|');
+  assert.match(text, /创建事件/);
+  assert.doesNotMatch(text, /剧情大纲|拆分步骤|暂停事件|编辑大纲|旧事件/);
+});

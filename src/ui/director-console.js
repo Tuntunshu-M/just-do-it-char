@@ -1,5 +1,6 @@
 import { el, runAction } from './dom.js';
 import { renderEventView } from './views/event.js';
+import { renderScriptsView } from './views/scripts.js';
 import { renderCastView } from './views/cast.js';
 import { renderPreferencesView } from './views/preferences.js';
 import { renderConnectionView } from './views/connection.js';
@@ -15,7 +16,7 @@ import './dialogs/cast-correction.js';
 import './dialogs/confirm.js';
 
 const TABS = [
-  ['event', '事件'], ['threads', '伏笔'], ['cast', '人物'], ['world', '世界书'],
+  ['event', '事件'], ['scripts', '剧本'], ['cast', '人物'], ['world', '世界书'],
   ['preferences', '偏好'], ['snapshots', '副本'],
 ];
 
@@ -42,7 +43,7 @@ export function createDirectorConsole({ root, services }) {
       return;
     }
     if (active === 'event') renderEventView(shared);
-    else if (active === 'threads') body.append(el(body.ownerDocument, 'p', {}, `伏笔 ${state.foreshadowing?.length ?? 0} 条`));
+    else if (active === 'scripts') renderScriptsView(shared);
     else if (active === 'cast') renderCastView(shared);
     else if (active === 'world') renderWorldInfoView(shared);
     else if (active === 'preferences') renderPreferencesView(shared);
@@ -66,11 +67,9 @@ export function createDirectorConsole({ root, services }) {
     const settingsButton = el(doc, 'button', { type: 'button', class: 'stpd-settings', 'aria-label': '打开设置', title: '设置' });
     settingsButton.append(el(doc, 'span', { class: 'fa-solid fa-gear', 'aria-hidden': 'true' }));
     settingsButton.onclick = () => { settingsOpen = true; render(); };
-    const stop = el(doc, 'button', { type: 'button', class: 'stpd-stop', 'aria-label': '立即停止导演', title: '立即停止' }, '■');
-    stop.onclick = () => runAction(() => services.stop?.(), services.notice);
     const closeButton = el(doc, 'button', { type: 'button', class: 'stpd-close', 'aria-label': '关闭导演时间', title: '关闭' }, '×');
     closeButton.onclick = close;
-    header.append(settingsButton, stop, closeButton);
+    header.append(settingsButton, closeButton);
     const nav = el(doc, 'nav', { class: 'stpd-tabs', 'aria-label': '导演控制台' });
     if (settingsOpen) {
       nav.className = 'stpd-settings-nav';
@@ -99,6 +98,7 @@ export function createDirectorConsole({ root, services }) {
   return {
     mount(data) { settings = data.settings; state = data.state; escapeHandler = (event) => { if (event.key === 'Escape' && open) close(); }; root.ownerDocument.addEventListener('keydown', escapeHandler); render(); },
     open: openModal,
+    openTab(tab) { active = tab; settingsOpen = false; render(); },
     close,
     render(data) { settings = data?.settings ?? settings; state = data?.state ?? state; render(); },
     destroy() { if (escapeHandler) root.ownerDocument.removeEventListener('keydown', escapeHandler); root.replaceChildren(); },

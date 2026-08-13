@@ -17,6 +17,8 @@ import { runDiagnostics } from './src/diagnostics/inspector.js';
 import { formatDiagnosticReport } from './src/diagnostics/records.js';
 import { classifyDirectorFailure } from './src/director/failure-reasons.js';
 import { createProfileService } from './src/director/profile-service.js';
+import { createScriptRepository } from './src/scripts/script-repository.js';
+import { createScriptRuntime } from './src/scripts/script-runtime.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -114,6 +116,8 @@ export function initializeExtension() {
   let chatKey = hostAdapter.getCurrentChatKey();
   let state = chatKey ? store.loadChat(chatKey) : createDirectorState(null);
   const engine = createEventEngine(store);
+  const repository = createScriptRepository(store);
+  const scriptRuntime = createScriptRuntime({ store, repository });
   const theme = createThemeManager(document, { save: async (value) => {
     settings.theme = value;
     await store.saveGlobal(settings);
@@ -129,6 +133,7 @@ export function initializeExtension() {
     client: directorClient,
     policy: { evaluatePolicy },
     engine,
+    repository,
     collector: collectDirectorContext,
     scheduler: createScheduler(),
     personality: {
@@ -147,6 +152,10 @@ export function initializeExtension() {
       rerender();
     },
     onNotice: notice,
+    onScriptCreated: (scriptId) => {
+      refresh();
+      consoleInstance?.openTab('scripts');
+    },
   });
   const refresh = () => {
     settings = store.loadGlobal();
@@ -273,6 +282,17 @@ export function initializeExtension() {
         refresh();
       },
       onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
+      selectScript: async (scriptId) => { await repository.select(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      performScript: async (scriptId) => {
+        await scriptRuntime.perform(chatKey, state.characterFingerprint, scriptId, {
+          confirmConflict: (current, next) => hostAdapter.showConfirm(`“${current.title}”正在演出。开演“${next.title}”会停止当前剧本，但保留历史进度。是否继续？`),
+        });
+        refresh();
+      },
+      pauseScript: async (scriptId) => { await scriptRuntime.pause(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      resumeScript: async (scriptId) => { await scriptRuntime.resume(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      changeScriptDirection: async (scriptId, direction) => { await scriptRuntime.changeDirection(chatKey, state.characterFingerprint, scriptId, direction); refresh(); },
+      stopScript: async (scriptId) => { await scriptRuntime.stop(chatKey, state.characterFingerprint, scriptId); refresh(); },
       pauseEvent: async () => { await engine.pause(chatKey, state.characterFingerprint); refresh(); },
       resumeEvent: async () => { await engine.resume(chatKey, state.characterFingerprint, { source: 'manual' }); refresh(); },
       rerollEvent: () => pipeline.regeneratePlan(),
