@@ -3,6 +3,43 @@ import { mergeRuleLedger } from './rule-ledger.js';
 
 export function createEventEngine(store) {
   const tx = (chatKey, fingerprint, work) => store.transaction(chatKey, fingerprint, work);
+
+  function normalizeSteps(steps = [], currentStepIndex = 0, completedIds = new Set()) {
+    return steps.map((step, index) => ({
+      ...cloneValue(step),
+      order: step.order ?? index + 1,
+      status: completedIds.has(step.id) ? 'completed' : (index === currentStepIndex ? 'current' : 'pending'),
+    }));
+  }
+
+  function normalizePlan(plan) {
+    const currentStepIndex = Math.max(0, Math.min(plan.currentStepIndex ?? 0, Math.max(0, (plan.steps?.length ?? 1) - 1)));
+    return {
+      ...cloneValue(plan),
+      steps: normalizeSteps(plan.steps, currentStepIndex),
+      currentStepIndex,
+      status: plan.steps?.length ? 'awaiting-user' : 'completed',
+      facts: cloneValue(plan.facts ?? []),
+      revisions: cloneValue(plan.revisions ?? []),
+      lastEvaluatedUserMessageId: plan.lastEvaluatedUserMessageId ?? null,
+      pendingTurn: null,
+    };
+  }
+
+  function revisionSnapshot(event, reason = '') {
+    return {
+      id: `revision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      reason,
+      outline: {
+        title: event.title,
+        premise: event.premise ?? '',
+        steps: cloneValue(event.steps ?? []),
+        foreshadowing: cloneValue(event.foreshadowing ?? []),
+      },
+      currentStepIndex: event.currentStepIndex ?? 0,
+    };
+  }
   function assertFactsImmutable(state, incoming = []) {
     const occurred = new Map((state.activeEvent?.facts ?? [])
       .filter((fact) => typeof fact === 'object' && fact.occurred)
@@ -16,6 +53,67 @@ export function createEventEngine(store) {
   }
   return {
     propose(event) { return { ...cloneValue(event), status: 'preview' }; },
+    activatePlan(chatKey, fingerprint, plan) { return tx(chatKey, fingerprint, (state) => {
+      state.activeEvent = normalizePlan(plan);
+      state.status = state.activeEvent.status;
+      state.pendingTransaction = null;
+      return state;
+    }); },
+    applyReaction(chatKey, fingerprint, reaction, retention = 3) { return tx(chatKey, fingerprint, (state) => {
+      const event = state.activeEvent;
+      if (!event) throw new Error('No active event');
+      const decision = reaction?.decision ?? 'neutral';
+      if (decision === 'stop') {
+        event.status = 'completed';
+        state.status = 'completed';
+        return state;
+      }
+      if (decision === 'advance') {
+        const current = event.steps?.[event.currentStepIndex];
+        if (current) current.status = 'completed';
+        event.currentStepIndex += 1;
+        if (event.currentStepIndex >= (event.steps?.length ?? 0)) {
+          event.status = 'completed';
+          state.status = 'completed';
+        } else {
+          event.steps[event.currentStepIndex].status = 'current';
+        }
+        return state;
+      }
+      if (decision === 'revise') {
+        const limit = Math.max(1, Math.min(3, Number(retention) || 3));
+        event.revisions ??= [];
+        event.revisions.push(revisionSnapshot(event, reaction.reason));
+        event.revisions = event.revisions.slice(-limit);
+        const completed = (event.steps ?? []).filter((step) => step.status === 'completed');
+        const completedIds = new Set(completed.map((step) => step.id));
+        const future = cloneValue(reaction.steps ?? []);
+        event.currentStepIndex = completed.length;
+        event.steps = [
+          ...completed,
+          ...normalizeSteps(future, 0, completedIds),
+        ];
+        event.status = future.length ? 'awaiting-user' : 'completed';
+        state.status = event.status;
+      }
+      return state;
+    }); },
+    restoreRevision(chatKey, fingerprint, revisionId) { return tx(chatKey, fingerprint, (state) => {
+      const event = state.activeEvent;
+      const revision = event?.revisions?.find((item) => item.id === revisionId);
+      if (!event || !revision) throw new Error('Revision not found');
+      const completed = (event.steps ?? []).filter((step) => step.status === 'completed');
+      const completedIds = new Set(completed.map((step) => step.id));
+      const restoredFuture = (revision.outline.steps ?? []).filter((step) => !completedIds.has(step.id));
+      event.title = revision.outline.title ?? event.title;
+      event.premise = revision.outline.premise ?? event.premise;
+      event.foreshadowing = cloneValue(revision.outline.foreshadowing ?? []);
+      event.currentStepIndex = completed.length;
+      event.steps = [...completed, ...normalizeSteps(restoredFuture, 0, completedIds)];
+      event.status = restoredFuture.length ? 'awaiting-user' : 'completed';
+      state.status = event.status;
+      return state;
+    }); },
     start(chatKey, fingerprint, event) { return tx(chatKey, fingerprint, (state) => {
       if (state.activeEvent) throw new Error('An active event already exists');
       state.activeEvent = { ...cloneValue(event), status: 'active', facts: cloneValue(event.facts ?? []) };

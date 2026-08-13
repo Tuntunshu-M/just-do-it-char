@@ -10,13 +10,13 @@ import { createScheduler } from './src/director/scheduler.js';
 import { createCssTemplate, createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
-import { buildPersonalityProfile } from './src/director/personality-profile.js';
 import { correctCast, lockCast } from './src/cast/cast-manager.js';
 import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 import { selectedWorldEntries } from './src/world-info/selection.js';
 import { runDiagnostics } from './src/diagnostics/inspector.js';
 import { formatDiagnosticReport } from './src/diagnostics/records.js';
 import { classifyDirectorFailure } from './src/director/failure-reasons.js';
+import { createProfileService } from './src/director/profile-service.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -60,7 +60,16 @@ function openAfterMenuDismissal(entry) {
 }
 
 export function mountWandEntry(openConsole) {
-  const menu = document.querySelector('#extensionsMenu');
+  const menus = typeof document.querySelectorAll === 'function'
+    ? [...document.querySelectorAll('#rm_extensions_block, #extensionsMenu')]
+    : [document.querySelector('#rm_extensions_block'), document.querySelector('#extensionsMenu')].filter(Boolean);
+  const visibleDrawer = menus.find((candidate) => {
+    const drawer = candidate.closest?.('.drawer');
+    return drawer && drawer.getBoundingClientRect().width > 0;
+  });
+  const menu = visibleDrawer
+    ?? menus.find((candidate) => candidate.id === 'extensionsMenu')
+    ?? (typeof document.querySelectorAll === 'function' ? null : menus[0]);
   if (!menu) return () => {};
   const existing = document.querySelector('#stpd-menu-entry');
   if (existing) existing.__stpdOpenConsole = openConsole;
@@ -116,6 +125,7 @@ export function initializeExtension() {
   } });
   theme.load(settings.theme);
   const directorClient = createDirectorClient({ adapter: hostAdapter });
+  const profileService = createProfileService({ client: directorClient });
   let rerender = () => {};
   const notice = (message) => hostAdapter.showSystemMessage?.(message);
   const pipeline = createDirectorPipeline({
@@ -141,6 +151,7 @@ export function initializeExtension() {
       if (message) notice(message);
       rerender();
     },
+    onNotice: notice,
   });
   const refresh = () => {
     settings = store.loadGlobal();
@@ -212,7 +223,19 @@ export function initializeExtension() {
       },
       personalityProfile: (contextSettings) => {
         const included = contextSettings?.worldInfo ? cachedSelectedEntries() : [];
-        return buildPersonalityProfile(hostAdapter.getCharacterData(), included, contextSettings);
+        const card = hostAdapter.getCharacterData();
+        if (state.personalityProfile?.content) return { ...state.personalityProfile, name: card?.name ?? '' };
+        profileService.ensureProfile({ state, card, entries: included, connection: settings.connection })
+          .then(() => store.saveChat(state))
+          .then(() => rerender())
+          .catch(() => rerender());
+        return { status: 'generating', name: card?.name ?? '', lines: [], sources: [] };
+      },
+      refreshPersonalityProfile: async () => {
+        const included = settings.context.worldInfo ? cachedSelectedEntries() : [];
+        await profileService.refreshProfile({ state, card: hostAdapter.getCharacterData(), entries: included, connection: settings.connection });
+        await store.saveChat(state);
+        refresh();
       },
       exportSnapshot: downloadSnapshot,
       importSnapshot: importSnapshotFile,
@@ -232,7 +255,11 @@ export function initializeExtension() {
       onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
       pauseEvent: async () => { await engine.pause(chatKey, state.characterFingerprint); refresh(); },
       resumeEvent: async () => { await engine.resume(chatKey, state.characterFingerprint, { source: 'manual' }); refresh(); },
-      rerollEvent: () => pipeline.manualCreate(`重新抽取当前事件：${state.activeEvent?.title ?? ''}`, true),
+      rerollEvent: () => pipeline.regeneratePlan(),
+      restoreRevision: async (revisionId) => {
+        await engine.restoreRevision(chatKey, state.characterFingerprint, revisionId);
+        refresh();
+      },
       changeDirection: async (direction) => { await engine.changeDirection(chatKey, state.characterFingerprint, { direction }); refresh(); },
       lockCast: async (locked) => { state.cast = lockCast(state.cast, locked); await store.saveChat(state); refresh(); },
       correctCast: async (correction) => { state.cast = correctCast(state.cast, correction); await store.saveChat(state); refresh(); },
@@ -267,26 +294,15 @@ export function initializeExtension() {
   const host = hostAdapter.getContext();
   const eventTypes = host.event_types ?? globalThis.event_types ?? {};
   const unsubscribers = [];
-  let idleTimer = null;
   const isGroupChat = () => {
     const current = hostAdapter.getContext();
     return Boolean(current.groupId ?? current.group_id);
   };
-  const scheduleIdle = () => {
-    clearTimeout(idleTimer);
-    if (!settings.trigger.idleEnabled || !chatKey || isGroupChat()) return;
-    idleTimer = setTimeout(() => pipeline.handleIdle({ hidden: document.hidden, userTyping: false }).catch((error) => console.error('[导演时间]', error)), Math.max(1, settings.trigger.idleMinutes) * 60000);
-  };
-  const composer = document.querySelector('#send_textarea');
-  const onTyping = () => scheduleIdle();
-  composer?.addEventListener('input', onTyping);
-  scheduleIdle();
   const userEvent = eventTypes.USER_MESSAGE_RENDERED ?? 'USER_MESSAGE_RENDERED';
-  unsubscribers.push(hostAdapter.on(userEvent, (messageIndex) => {
+  unsubscribers.push(hostAdapter.on(userEvent, async (messageIndex) => {
     if (!chatKey || isGroupChat()) return;
     const message = hostAdapter.getMessages()[messageIndex] ?? hostAdapter.getMessages().at(-1);
-    pipeline.handleUserMessage(message?.mes ?? '').catch((error) => console.error('[导演时间]', error));
-    scheduleIdle();
+    await pipeline.handleUserMessage(message?.mes ?? '', messageIndex);
   }));
   if (isGroupChat()) {
     state.status = 'paused';
@@ -295,19 +311,22 @@ export function initializeExtension() {
   const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
   unsubscribers.push(hostAdapter.on(chatEvent, () => {
     pipeline.cancel();
+    pipeline.clearTurnInjection({ resetTurn: true }).catch((error) => console.error('[导演时间]', error));
     refresh();
     if (isGroupChat()) state.status = 'paused';
     rerender();
     worldBookCache.clear();
-    scheduleIdle();
   }));
+  for (const eventName of [eventTypes.GENERATION_ENDED ?? 'GENERATION_ENDED', eventTypes.GENERATION_STOPPED ?? 'GENERATION_STOPPED']) {
+    unsubscribers.push(hostAdapter.on(eventName, () => pipeline.clearTurnInjection().catch((error) => console.error('[导演时间]', error))));
+  }
   const editedEvent = eventTypes.MESSAGE_EDITED ?? 'MESSAGE_EDITED';
   unsubscribers.push(hostAdapter.on(editedEvent, async (messageIndex) => {
     const message = hostAdapter.getMessages()[messageIndex];
     if (message && chatKey) await engine.reconcileEditedMessage(chatKey, state.characterFingerprint, { messageId: messageIndex, text: message.mes ?? '' });
     refresh();
   }));
-  runtime = { pipeline, theme, destroy() { pipeline.cancel(); clearTimeout(idleTimer); composer?.removeEventListener('input', onTyping); unsubscribers.forEach((off) => off()); menuObserver.disconnect(); menuCleanup(); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
+  runtime = { pipeline, theme, destroy() { pipeline.cancel(); unsubscribers.forEach((off) => off()); menuObserver.disconnect(); menuCleanup(); theme.destroy(); consoleInstance?.destroy(); consoleInstance = null; } };
   return capabilities;
 }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseDirectorResult, validateDirectorResult } from '../../src/director/schemas.js';
+import { parseDirectorResult, validateDirectorResult, validateReactionResult, validateStepResult, validateProfileResult } from '../../src/director/schemas.js';
 
 const valid = {
   event: { title: 'Trip', category: 'daily', premise: 'Japan', steps: [{ id: 's1', goal: 'depart' }] },
@@ -39,4 +39,11 @@ test('parser normalizes a provider action text field', () => {
     actions: [{ characterId: 'a', text: 'buys tickets', evidence: ['card: decisive'] }],
   };
   assert.deepEqual(parseDirectorResult(JSON.stringify(providerResult)), valid);
+});
+
+test('reaction, step, and profile contracts are independent from event planning', () => {
+  assert.deepEqual(validateReactionResult({ decision: 'revise', reason: 'user declined', steps: [{ id: 's2', goal: 'Offer a nearby option' }] }).decision, 'revise');
+  assert.equal(validateStepResult({ injection: 'Guide A to offer the nearby option.' }).injection.includes('Guide'), true);
+  assert.deepEqual(validateProfileResult({ content: 'Calm and observant.', citations: [{ source: 'card:description', excerpt: 'calm' }] }).citations.length, 1);
+  assert.throws(() => validateReactionResult({ decision: 'invalid' }), /decision/i);
 });

@@ -18,6 +18,7 @@ test('migration upgrades legacy state while preserving unknown fields', () => {
   assert.deepEqual(migrated.customPluginData, { keep: true });
   assert.ok(Array.isArray(migrated.foreshadowing));
   assert.deepEqual(migrated.diagnostics, { records: [], lastCheck: null });
+  assert.equal(migrated.personalityProfile.status, 'empty');
 });
 
 test('migration rejects state from a newer schema', () => {
@@ -32,4 +33,5 @@ test('global migration adds an empty installed-world-book selection', () => {
 
   assert.equal(migrated.schemaVersion, SCHEMA_VERSION);
   assert.deepEqual(migrated.context.worldInfoBooks, {});
+  assert.equal(migrated.defaults.revisionRetention, 3);
 });

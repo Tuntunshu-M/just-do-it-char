@@ -44,3 +44,41 @@ test('foreshadowing promotes only when mature', async () => {
   await engine.promoteForeshadowing('c', 'f', 'f1');
   assert.equal(state.activeEvent.title, '线索');
 });
+
+test('activating a plan waits for a real user turn', async () => {
+  const { state, engine } = fixture();
+  await engine.activatePlan('c', 'f', { id: 'trip', title: 'Trip', steps: [{ id: 's1', goal: 'Invite' }] });
+  assert.equal(state.status, 'awaiting-user');
+  assert.equal(state.activeEvent.status, 'awaiting-user');
+  assert.equal(state.activeEvent.currentStepIndex, 0);
+  assert.equal(state.activeEvent.steps[0].status, 'current');
+});
+
+test('reaction revisions retain bounded history and preserve occurred facts', async () => {
+  const { state, engine } = fixture();
+  await engine.activatePlan('c', 'f', {
+    id: 'trip', title: 'Trip', facts: [{ id: 'met', text: 'Met at home', occurred: true }],
+    steps: [{ id: 's1', goal: 'Invite' }, { id: 's2', goal: 'Buy tickets' }],
+  });
+  await engine.applyReaction('c', 'f', { decision: 'advance', reason: 'accepted' }, 2);
+  assert.equal(state.activeEvent.currentStepIndex, 1);
+  assert.equal(state.activeEvent.steps[0].status, 'completed');
+  await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'changed mind', steps: [{ id: 's3', goal: 'Stay nearby' }] }, 2);
+  await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'rain', steps: [{ id: 's4', goal: 'Stay home' }] }, 2);
+  await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'sun', steps: [{ id: 's5', goal: 'Walk' }] }, 2);
+  assert.equal(state.activeEvent.revisions.length, 2);
+  assert.deepEqual(state.activeEvent.facts, [{ id: 'met', text: 'Met at home', occurred: true }]);
+  assert.equal(state.activeEvent.steps.at(-1).id, 's5');
+});
+
+test('restoring a revision only restores unfinished planning', async () => {
+  const { state, engine } = fixture();
+  await engine.activatePlan('c', 'f', { id: 'e', title: 'Plan', steps: [{ id: 'done', goal: 'Done' }, { id: 'old', goal: 'Old' }] });
+  await engine.applyReaction('c', 'f', { decision: 'advance' }, 3);
+  await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'change', steps: [{ id: 'new', goal: 'New' }] }, 3);
+  const revisionId = state.activeEvent.revisions[0].id;
+  await engine.restoreRevision('c', 'f', revisionId);
+  assert.equal(state.activeEvent.steps[0].id, 'done');
+  assert.equal(state.activeEvent.steps[0].status, 'completed');
+  assert.equal(state.activeEvent.steps[1].id, 'old');
+});

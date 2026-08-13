@@ -31,7 +31,7 @@ test('console module exports lifecycle contract', async () => {
 test('console supports prompted manual events and persists editable settings', async () => {
   const text = await source();
   for (const label of ['事件想法', '让 AI 扩展', '让 char 策划旅行', 'select.onchange', 'agency.onchange', 'weight.onchange']) assert.match(text, new RegExp(label));
-  assert.match(text, /onManualEvent\?\.\(value/);
+  assert.match(text, /onManualEvent\?\.\(idea\.value/);
 });
 
 test('console exposes independent API connection fields', async () => {
@@ -101,10 +101,11 @@ test('cast view exposes replace, merge, and split correction workflows', async (
 
 test('cast view keeps full profiles and evidence sources folded by default', async () => {
   const text = await uiSource('views/cast.js');
-  assert.match(text, /profile\.lines\.slice\(0, 3\)/);
+  assert.match(text, /profile\.content/);
   assert.match(text, /'details'/);
   assert.match(text, /全部侧写/);
   assert.match(text, /引用资料/);
+  assert.match(text, /profile\.citations/);
   assert.match(text, /stpd-collapsible/);
   assert.doesNotMatch(text, /open:\s*true/);
 });

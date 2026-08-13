@@ -58,6 +58,7 @@ export function createGlobalSettings() {
     },
     defaults: {
       userAgency: 80,
+      revisionRetention: 3,
       consequencePermissions: {},
     },
     theme: {
@@ -78,6 +79,14 @@ export function createDirectorState(chatKey = null, fingerprint = null) {
     status: 'idle',
     cast: { mode: 'single', locked: false, members: [], leadId: null },
     activeEvent: null,
+    personalityProfile: {
+      status: 'empty',
+      fingerprint: '',
+      content: '',
+      citations: [],
+      generatedAt: null,
+      error: '',
+    },
     foreshadowing: [],
     historySummary: '',
     directorNotes: '',

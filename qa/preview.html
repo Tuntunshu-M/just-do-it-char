@@ -19,6 +19,12 @@
     state.status = 'active';
     state.activeEvent = { title: '让 char 策划旅行', premise: '角色主动安排出发与游玩' };
     state.foreshadowing = [{ id: 'f1', title: '未拆封的车票' }];
+    state.generation = { phase: 'failed', error: '正文生成失败' };
+    state.diagnostics.records = [{
+      id: 'qa-failure', trigger: 'manual', status: 'failed', stage: 'reply',
+      startedAt: '2026-08-13T10:00:00.000Z', finishedAt: '2026-08-13T10:00:01.245Z', durationMs: 1245,
+      message: '正文生成服务暂时不可用，请检查主连接状态。这是一条用于验证窄屏长错误文本自动换行且不会撑开检查窗口的诊断记录。',
+    }];
     state.cast = {
       mode: 'multi',
       locked: false,
@@ -35,6 +41,16 @@
       confirm: async () => true,
       listModels: async () => ['director-small', 'director-large'],
       testConnection: async () => true,
+      runDiagnostics: async () => ({
+        checkedAt: new Date().toISOString(),
+        summary: { connectionMode: 'main', installedWorldBooks: 2 },
+        checks: [
+          { id: 'chat', label: '当前聊天', status: 'pass', message: '已连接当前聊天。' },
+          { id: 'connection', label: '连接配置', status: 'pass', message: '将使用 SillyTavern 当前主连接。' },
+          { id: 'world-books', label: '世界书', status: 'warning', message: '发现 2 本世界书，请确认需要参考的条目。' },
+        ],
+      }),
+      copyDiagnosticReport: async (snapshot) => { document.body.dataset.copiedRecords = String(snapshot.records.length); },
       worldInfoNames: () => ['城市设定', '全局关系'],
       loadWorldInfoBook: async (name) => ({ name, entries: name === '城市设定'
         ? [{ id: 'shared', name: '街区与交通' }, { id: 'weather', name: '季节气候' }]

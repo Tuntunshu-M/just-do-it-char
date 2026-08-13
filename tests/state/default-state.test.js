@@ -43,6 +43,6 @@ test('director state has isolated serializable event data', () => {
     'activeEvent', 'cast', 'characterFingerprint', 'chatKey', 'cooldowns',
     'counters', 'foreshadowing', 'historySummary', 'pendingTransaction',
     'preference', 'ruleLedger', 'sceneSafety', 'schemaVersion', 'status', 'directorNotes', 'generation',
-    'updatedAt', 'diagnostics',
+    'updatedAt', 'diagnostics', 'personalityProfile',
   ].sort());
 });

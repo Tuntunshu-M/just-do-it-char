@@ -19,8 +19,9 @@ test('extension reloads chat state and clears the world-book cache after chat ch
   assert.match(source, /chatKey = hostAdapter\.getCurrentChatKey\(\)/);
   assert.match(source, /CHAT_CHANGED/);
   assert.match(source, /worldBookCache\.clear\(\)/);
-  assert.match(source, /scheduleIdle\(\)/);
-  assert.match(source, /if \(!settings\.trigger\.idleEnabled \|\| !chatKey \|\| isGroupChat\(\)\) return/);
+  assert.match(source, /GENERATION_ENDED/);
+  assert.match(source, /pipeline\.clearTurnInjection\(\)/);
+  assert.match(source, /pipeline\.handleUserMessage\(message\?\.mes \?\? '', messageIndex\)/);
   assert.match(source, /if \(isGroupChat\(\)\) state\.status = 'paused';\s*rerender\(\);/);
   assert.doesNotMatch(source, /const chatKey = hostAdapter\.getCurrentChatKey/);
 });
@@ -105,6 +106,51 @@ test('native menu entry mounts as its own host menu item and opens when clicked'
     assert.equal(icon.classList.contains('extensionsMenuExtensionButton'), true);
     entry.dispatchEvent({ type: 'click', preventDefault() {} });
     assert.equal(opened, 1);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.requestAnimationFrame = previousAnimationFrame;
+  }
+});
+
+test('native menu entry prefers the visible modern extensions drawer', async () => {
+  const { mountWandEntry } = await import('../../index.js');
+  const byId = new Map();
+  const make = (tagName, rect = { width: 0, height: 0 }) => {
+    const listeners = new Map();
+    const classes = new Set();
+    return {
+      tagName,
+      children: [],
+      parentElement: null,
+      classList: { contains: (name) => classes.has(name) },
+      set className(value) { classes.clear(); value.split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); },
+      get className() { return [...classes].join(' '); },
+      set id(value) { this._id = value; byId.set(value, this); },
+      get id() { return this._id; },
+      append(...children) { this.children.push(...children); children.forEach((child) => { child.parentElement = this; }); },
+      closest(selector) { return selector === '.drawer' ? this.drawer : null; },
+      getBoundingClientRect() { return rect; },
+      setAttribute() {},
+      addEventListener(type, listener) { listeners.set(type, listener); },
+      dispatchEvent(event) { listeners.get(event.type)?.(event); },
+      remove() { byId.delete(this.id); },
+    };
+  };
+  const oldMenu = make('div'); oldMenu.id = 'extensionsMenu';
+  const drawer = make('div', { width: 300, height: 500 }); drawer.className = 'drawer';
+  const modernMenu = make('div'); modernMenu.id = 'rm_extensions_block'; modernMenu.drawer = drawer;
+  const previousDocument = globalThis.document;
+  const previousAnimationFrame = globalThis.requestAnimationFrame;
+  globalThis.document = {
+    createElement: (tagName) => make(tagName),
+    querySelectorAll: () => [modernMenu, oldMenu],
+    querySelector: (selector) => byId.get(selector.slice(1)) ?? null,
+  };
+  globalThis.requestAnimationFrame = (callback) => { callback(); return 1; };
+  try {
+    mountWandEntry(() => {});
+    assert.equal(modernMenu.children[0].id, 'stpd-menu-container');
+    assert.equal(oldMenu.children.length, 0);
   } finally {
     globalThis.document = previousDocument;
     globalThis.requestAnimationFrame = previousAnimationFrame;

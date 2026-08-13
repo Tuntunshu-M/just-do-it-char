@@ -187,6 +187,15 @@
 #st-proactive-director .stpd-collapsible[open] summary { color: var(--stpd-text); }
 #st-proactive-director .stpd-collapsible .stpd-profile-list { max-height: 240px; overflow-y: auto; padding: 2px 4px 8px 22px; }
 #st-proactive-director .stpd-evidence-list .stpd-profile-list { max-height: 160px; }
+#st-proactive-director .stpd-profile-content,
+#st-proactive-director .stpd-event-outline { min-width: 0; overflow-wrap: anywhere; }
+#st-proactive-director .stpd-event-outline { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--stpd-border); }
+#st-proactive-director .stpd-event-list { max-height: 220px; overflow-y: auto; margin: 0; padding-left: 20px; }
+#st-proactive-director .stpd-event-list li { overflow-wrap: anywhere; }
+#st-proactive-director .stpd-event-revisions { margin-top: 2px; }
+#st-proactive-director .stpd-revision-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 2px; }
+#st-proactive-director button.stpd-compact { min-height: 30px; padding: 4px 8px; font-size: 12px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
+#st-proactive-director button.stpd-compact:hover { border-color: var(--stpd-accent); }
 #st-proactive-director .stpd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #st-proactive-director .stpd-actions button { min-height: 36px; padding: 7px 11px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
 #st-proactive-director .stpd-theme-actions { gap: 6px; }

@@ -1,5 +1,5 @@
 import { buildDirectorMessages } from './prompts.js';
-import { parseDirectorResult } from './schemas.js';
+import { parseDirectorResponse } from './schemas.js';
 
 export const MAIN_API_REMINDER = '正在在用主api哦！';
 const REMINDER_INTERVAL = 24 * 60 * 60 * 1000;
@@ -26,7 +26,7 @@ function normalizeContent(value) {
 function extractResponseContent(response) {
   if (typeof response === 'string' || Array.isArray(response)) return normalizeContent(response);
   if (!response || typeof response !== 'object') return response;
-  if (Object.hasOwn(response, 'event')) return response;
+  if (['event', 'decision', 'injection', 'citations'].some((key) => Object.hasOwn(response, key))) return response;
 
   const candidates = [
     response.choices?.[0]?.delta?.content,
@@ -157,7 +157,7 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
     } else {
       throw new Error(`Unknown director connection mode: ${connection.mode}`);
     }
-    return parseDirectorResult(content);
+    return parseDirectorResponse(content, intent?.type ?? 'plan-event');
   }
 
   async function testConnection(connection) {

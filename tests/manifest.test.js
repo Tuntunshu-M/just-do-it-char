@@ -21,5 +21,5 @@ test('manifest advertises the diagnostics inspector release', async () => {
   const raw = await readFile(new URL('../manifest.json', import.meta.url), 'utf8');
   const manifest = JSON.parse(raw);
 
-  assert.equal(manifest.version, '0.5.0');
+  assert.equal(manifest.version, '0.6.0');
 });

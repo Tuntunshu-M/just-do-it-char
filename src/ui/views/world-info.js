@@ -4,7 +4,7 @@ import { bookSelectionState, setBookSelected, setEntrySelected, worldEntryKey } 
 const viewStates = new WeakMap();
 
 function stateFor(settings) {
-  if (!viewStates.has(settings)) viewStates.set(settings, { expanded: new Set(), books: new Map(), loading: new Set(), errors: new Map(), search: '', busy: false, scrollTop: 0, body: null });
+  if (!viewStates.has(settings)) viewStates.set(settings, { expanded: new Set(), books: new Map(), loading: new Set(), errors: new Map(), search: '', busy: false, scrollTop: 0, parentScrollTop: 0, body: null });
   return viewStates.get(settings);
 }
 
@@ -17,13 +17,27 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
   const ui = stateFor(settings);
   ui.body = body;
   const captureScroll = () => {
-    if (ui.body) ui.scrollTop = ui.body.scrollTop;
+    if (ui.body) {
+      ui.scrollTop = ui.body.scrollTop;
+      ui.parentScrollTop = ui.body.parentElement?.scrollTop ?? ui.parentScrollTop;
+    }
   };
   const rerenderInPlace = () => {
-    captureScroll();
     rerender();
+    const restore = () => {
+      const current = ui.body;
+      if (!current) return;
+      current.scrollTop = ui.scrollTop;
+      if (current.parentElement) current.parentElement.scrollTop = ui.parentScrollTop;
+    };
+    restore();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restore);
+    setTimeout(restore, 0);
   };
-  const restoreScroll = () => { body.scrollTop = ui.scrollTop; };
+  const restoreScroll = () => {
+    body.scrollTop = ui.scrollTop;
+    if (body.parentElement) body.parentElement.scrollTop = ui.parentScrollTop;
+  };
   const selection = settings.context.worldInfoBooks ??= {};
   const names = services.worldInfoNames?.() ?? [];
   const enabled = el(doc, 'input', { type: 'checkbox', checked: settings.context.worldInfo });
