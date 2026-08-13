@@ -55,6 +55,10 @@ foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现�
   "event": {
     "title": "简短事件名",
     "category": "${intent.mainCategory ?? 'daily'}",
+    "premise": "完整剧情大纲，概述开端、发展、转折、高潮与结局",
+    "conflict": "主要矛盾",
+    "climax": "高潮事件及角色主动行动",
+    "ending": "结局走向",
     "steps": [
       ${stepExample}
     ]

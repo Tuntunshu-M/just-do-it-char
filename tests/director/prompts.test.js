@@ -34,6 +34,7 @@ test('prompt prioritizes a complete compact JSON object and shows a valid create
   assert.match(system.content, /缩短.*文字/is);
   assert.doesNotMatch(system.content, /900.*字/);
   assert.match(system.content, /"event"\s*:\s*\{[\s\S]*"title"\s*:/);
+  for (const field of ['premise', 'conflict', 'climax', 'ending']) assert.match(system.content, new RegExp(`"${field}"\\s*:`));
   assert.match(system.content, /无法.*完整.*"event"\s*:\s*null/is);
 });
 

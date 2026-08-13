@@ -27,6 +27,9 @@ export function validateDirectorResult(value, intent = {}) {
     requireType(CATEGORIES.has(value.event.category), 'event category is unknown');
     requireType(Array.isArray(value.event.steps), 'event steps are required');
     if (intent.type === 'plan-event') {
+      for (const field of ['premise', 'conflict', 'climax', 'ending']) {
+        requireType(typeof value.event[field] === 'string' && value.event[field].trim(), `event ${field} is required`);
+      }
       requireType(value.event.steps.length >= 5 && value.event.steps.length <= 7, 'event steps must contain 5 to 7 stages');
       const stepIds = value.event.steps.map((step) => step?.id);
       requireType(stepIds.every((id) => typeof id === 'string' && id), 'event step id is required');
