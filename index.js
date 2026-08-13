@@ -207,6 +207,12 @@ export function initializeExtension() {
     if (notify && result.error === '还没连接副 API') notice('还没连接副 API');
     rerender();
   };
+  const markProfileFromCastChange = async () => {
+    const entries = await loadSelectedWorldBooks();
+    await profileService.ensureProfile({ ...profileOptions(), entries });
+    await store.saveChat(state);
+    refresh();
+  };
   const downloadSnapshot = (options) => {
     const snapshot = exportSnapshot(state, options);
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
@@ -303,11 +309,21 @@ export function initializeExtension() {
       changeDirection: async (direction) => { await engine.changeDirection(chatKey, state.characterFingerprint, { direction }); refresh(); },
       lockCast: async (locked) => { state.cast = lockCast(state.cast, locked); await store.saveChat(state); refresh(); },
       correctCast: async (correction) => { state.cast = correctCast(state.cast, correction); await store.saveChat(state); refresh(); },
-      setCastMode: async (mode) => { state.cast = setCastMode(state.cast, mode); await store.saveChat(state); refresh(); },
-      addCastMember: async (member) => { state.cast = addCastMember(state.cast, member); await store.saveChat(state); refresh(); },
-      updateCastMember: async (id, changes) => { state.cast = updateCastMember(state.cast, id, changes); await store.saveChat(state); refresh(); },
-      removeCastMember: async (id) => { state.cast = removeCastMember(state.cast, id); await store.saveChat(state); refresh(); },
-      setLeadMember: async (id) => { state.cast = setLeadMember(state.cast, id); await store.saveChat(state); refresh(); },
+      setCastMode: async (mode) => {
+        state.cast = setCastMode(state.cast, mode);
+        await store.saveChat(state);
+        if (mode === 'multi' && !state.cast.multiProfileInitialized) {
+          const entries = await loadSelectedWorldBooks();
+          const result = await profileService.switchModeAndEnsureProfile({ ...profileOptions(), entries });
+          await store.saveChat(state);
+          if (result?.error === '还没连接副 API') notice('还没连接副 API');
+        } else await markProfileFromCastChange();
+        refresh();
+      },
+      addCastMember: async (member) => { state.cast = addCastMember(state.cast, member); await store.saveChat(state); await markProfileFromCastChange(); },
+      updateCastMember: async (id, changes) => { state.cast = updateCastMember(state.cast, id, changes); await store.saveChat(state); await markProfileFromCastChange(); },
+      removeCastMember: async (id) => { state.cast = removeCastMember(state.cast, id); await store.saveChat(state); await markProfileFromCastChange(); },
+      setLeadMember: async (id) => { state.cast = setLeadMember(state.cast, id); await store.saveChat(state); await markProfileFromCastChange(); },
       isGroupChat: () => Boolean(hostAdapter.getContext().groupId ?? hostAdapter.getContext().group_id),
       testConnection: (connection) => directorClient.testConnection(connection),
       runDiagnostics: () => runDiagnostics({ adapter: hostAdapter, settings, state }),

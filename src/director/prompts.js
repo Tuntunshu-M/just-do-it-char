@@ -14,16 +14,30 @@ function castRules(intent, context) {
 }
 
 function profileContract(intent, context) {
-  return `${castRules(intent, context)}
-请压缩角色卡与用户选中的世界书资料。侧写须覆盖姓名、性格、背景、与 user 的关系、对 user 的态度、当前目标/秘密/执念、说话风格、主动推动方式和知识边界。
-必须明确区分：明确知道、亲历/当前可感知、合理推断、明确不知道。不得把未来事件、未公开伏笔或世界书幕后秘密写成角色知识。
-只输出：
-{
+  const multi = intent.castMode === 'multi' || context.cast?.mode === 'multi';
+  const output = multi
+    ? `{
+  "content": "群像压缩侧写与关系网",
+  "members": [
+    { "id": "稳定人物 id", "name": "姓名", "aliases": [], "personality": "性格", "background": "背景", "relationship": "与 user 的关系", "attitude": "对 user 的态度", "goal": "必须通过 user 才能完成的目标/秘密/执念", "speechStyle": "说话风格", "activeApproach": "主动接近与推动方式", "knowledgeBoundary": "明确知道、推断和明确不知道的边界", "evidence": ["资料短摘录"] }
+  ],
+  "relations": [
+    { "from": "人物 id", "to": "人物 id", "type": "合作/冲突/竞争/隐瞒", "knowledgeBoundary": "双方分别知道什么" }
+  ],
+  "citations": [{ "source": "card:description 或 worldInfo:书名/条目", "excerpt": "支持侧写的原文短摘录" }]
+}`
+    : `{
   "content": "压缩人物侧写",
   "citations": [
     { "source": "card:personality", "excerpt": "支持侧写的原文短摘录" }
   ]
 }`;
+  return `${castRules(intent, context)}
+请压缩角色卡与用户选中的世界书资料。侧写须覆盖姓名、性格、背景、与 user 的关系、对 user 的态度、当前目标/秘密/执念、说话风格、主动推动方式和知识边界。
+必须明确区分：明确知道、亲历/当前可感知、合理推断、明确不知道。不得把未来事件、未公开伏笔或世界书幕后秘密写成角色知识。
+${multi ? '从角色卡和用户勾选的世界书条目中提取全部有明确资料证据的候选人物，不限制总人数，不虚构只有称谓但没有人物证据的候选。每人保持独立身份、目标、证据和认知边界，并整理角色关系网。' : ''}
+只输出：
+${output}`;
 }
 
 const CATEGORY_RULES = {

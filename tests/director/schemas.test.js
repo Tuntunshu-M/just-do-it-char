@@ -48,6 +48,12 @@ test('reaction, step, and profile contracts are independent from event planning'
   assert.throws(() => validateReactionResult({ decision: 'invalid' }), /decision/i);
 });
 
+test('multi profile requires independently identified members and relations', () => {
+  const profile = { content: '群像', members: [{ id: 'a', name: 'A', knowledgeBoundary: '只知道公开信息' }], relations: [], citations: [] };
+  assert.doesNotThrow(() => validateProfileResult(profile, { castMode: 'multi' }));
+  assert.throws(() => validateProfileResult({ content: '群像', citations: [] }, { castMode: 'multi' }), /members/);
+});
+
 function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
   return {
     event: {

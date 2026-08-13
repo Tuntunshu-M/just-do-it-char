@@ -48,6 +48,14 @@ test('profile intent uses a profile-only contract with knowledge fog', () => {
   assert.match(system.content, /世界书.*不等于.*全知/s);
 });
 
+test('multi profile contract extracts all evidenced candidates and relations', () => {
+  const [system] = buildDirectorMessages({ cast: { mode: 'multi' } }, { type: 'profile-character', castMode: 'multi' });
+  assert.match(system.content, /"members"\s*:/);
+  assert.match(system.content, /"relations"\s*:/);
+  assert.match(system.content, /角色卡.*世界书/);
+  assert.match(system.content, /认知边界/);
+});
+
 test('event intent composes multi-card stages, category tones, and anti-conspiracy rules', () => {
   const [system] = buildDirectorMessages(
     { cast: { mode: 'multi', members: Array.from({ length: 6 }, (_, index) => ({ id: `c${index}` })) }, genre: { mode: 'fantasy' } },
