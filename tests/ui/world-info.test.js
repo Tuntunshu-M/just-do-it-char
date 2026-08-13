@@ -27,7 +27,7 @@ function all(node) {
   return [node, ...(node.children ?? []).flatMap(all)];
 }
 
-test('world-book entry selection keeps the current panel scroll position', async () => {
+test('world-book entry selection keeps the current panel scroll position after async save rerender', async () => {
   const doc = createDocument();
   const settings = { context: { worldInfo: true, worldInfoBooks: {} } };
   const book = { name: 'Book A', entries: [{ uid: 1, name: 'Entry A' }] };
@@ -42,7 +42,10 @@ test('world-book entry selection keeps the current panel scroll position', async
         worldInfoNames: () => ['Book A'],
         loadWorldInfoBook: async () => book,
       },
-      saveSettings: async () => {},
+      saveSettings: async () => {
+        render();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      },
       rerender: render,
     });
   };
@@ -56,7 +59,7 @@ test('world-book entry selection keeps the current panel scroll position', async
   const inputs = all(body).filter((node) => node.tagName === 'input');
   const entry = inputs.at(-1);
   entry.checked = true;
-  entry.onchange();
+  await entry.onchange();
 
   assert.equal(body.scrollTop, 240);
 });

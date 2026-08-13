@@ -16,8 +16,11 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
   const doc = body.ownerDocument;
   const ui = stateFor(settings);
   ui.body = body;
+  const captureScroll = () => {
+    if (ui.body) ui.scrollTop = ui.body.scrollTop;
+  };
   const rerenderInPlace = () => {
-    ui.scrollTop = ui.body?.scrollTop ?? ui.scrollTop;
+    captureScroll();
     rerender();
   };
   const restoreScroll = () => { body.scrollTop = ui.scrollTop; };
@@ -48,6 +51,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
   search.onchange = () => { ui.search = search.value.trim().toLowerCase(); rerenderInPlace(); };
   const selectAll = el(doc, 'button', { type: 'button', disabled: ui.busy }, '全选');
   selectAll.onclick = () => runAction(async () => {
+    captureScroll();
     ui.busy = true; rerenderInPlace();
     try {
       for (const name of names) setBookSelected(selection, await loadBook(name), true);
@@ -55,7 +59,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
     } finally { ui.busy = false; rerenderInPlace(); }
   }, services.notice);
   const selectNone = el(doc, 'button', { type: 'button', disabled: ui.busy }, '全不选');
-  selectNone.onclick = () => { settings.context.worldInfoBooks = {}; saveSettings(); rerenderInPlace(); };
+  selectNone.onclick = () => { captureScroll(); settings.context.worldInfoBooks = {}; saveSettings(); rerenderInPlace(); };
   toolbar.append(search, selectAll, selectNone);
   body.append(el(doc, 'h4', {}, '世界书条目选择'), toolbar);
 
@@ -88,6 +92,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
       checkbox.indeterminate = status.indeterminate;
     } else checkbox.checked = Boolean(selection[name]?.all);
     checkbox.onchange = () => runAction(async () => {
+      captureScroll();
       const loaded = await loadBook(name);
       setBookSelected(selection, loaded, checkbox.checked);
       await saveSettings(); rerenderInPlace();
@@ -103,7 +108,7 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
         const key = worldEntryKey(name, entry);
         const current = selection[name];
         const input = el(doc, 'input', { type: 'checkbox', checked: Boolean(current?.all || current?.entries?.includes(key)) });
-        input.onchange = () => { setEntrySelected(selection, name, entry, input.checked); saveSettings(); rerenderInPlace(); };
+        input.onchange = () => { captureScroll(); setEntrySelected(selection, name, entry, input.checked); saveSettings(); rerenderInPlace(); };
         entriesNode.append(field(doc, entryLabel(entry), input));
       }
       if (!entries.length) entriesNode.append(el(doc, 'p', { class: 'stpd-muted' }, '没有匹配的条目。'));
