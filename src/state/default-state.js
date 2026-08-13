@@ -82,6 +82,8 @@ export function createDirectorState(chatKey = null, fingerprint = null) {
     personalityProfile: {
       status: 'empty',
       fingerprint: '',
+      activeFingerprint: '',
+      ignoredFingerprint: '',
       content: '',
       citations: [],
       generatedAt: null,

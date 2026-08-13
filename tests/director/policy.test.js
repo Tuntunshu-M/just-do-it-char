@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluatePolicy, normalizeWeights } from '../../src/director/policy.js';
+import { evaluatePolicy, normalizeWeights, selectEventCategory } from '../../src/director/policy.js';
 
 test('weights include only independently enabled categories', () => {
   assert.deepEqual(normalizeWeights({ daily: { enabled: true, weight: 30 }, crisis: { enabled: false, weight: 60 }, erotic: { enabled: true, weight: 10 } }), { daily: 0.75, erotic: 0.25 });
+});
+
+test('event category selection uses enabled weights and exposes other enabled tones', () => {
+  const categories = {
+    daily: { enabled: true, weight: 40 }, crisis: { enabled: true, weight: 35 }, erotic: { enabled: false, weight: 25 },
+  };
+  assert.deepEqual(selectEventCategory(categories, { random: () => 0 }), { mainCategory: 'daily', auxiliaryTones: { crisis: 1 } });
+  assert.deepEqual(selectEventCategory(categories, { random: () => 0.99 }), { mainCategory: 'crisis', auxiliaryTones: { daily: 1 } });
+  assert.equal(selectEventCategory(categories, { requestedCategory: 'erotic', random: () => 0 }).mainCategory, 'daily');
+  assert.equal(selectEventCategory(categories, { requestedCategory: 'crisis', random: () => 0 }).mainCategory, 'crisis');
 });
 
 test('disabled category and forbidden consequence are blocked locally', () => {

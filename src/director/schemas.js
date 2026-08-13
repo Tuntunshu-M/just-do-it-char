@@ -18,7 +18,7 @@ function normalizeDirectorResult(value) {
   };
 }
 
-export function validateDirectorResult(value) {
+export function validateDirectorResult(value, intent = {}) {
   requireType(value && typeof value === 'object' && !Array.isArray(value), 'root must be an object');
   requireType(Object.hasOwn(value, 'event'), 'event field is required');
   if (value.event !== null) {
@@ -26,6 +26,25 @@ export function validateDirectorResult(value) {
     requireType(typeof value.event.title === 'string', 'event title is required');
     requireType(CATEGORIES.has(value.event.category), 'event category is unknown');
     requireType(Array.isArray(value.event.steps), 'event steps are required');
+    if (intent.type === 'plan-event') {
+      requireType(value.event.steps.length >= 5 && value.event.steps.length <= 7, 'event steps must contain 5 to 7 stages');
+      const stepIds = value.event.steps.map((step) => step?.id);
+      requireType(stepIds.every((id) => typeof id === 'string' && id), 'event step id is required');
+      requireType(new Set(stepIds).size === stepIds.length, 'event step ids must be unique');
+      if (intent.mainCategory) requireType(value.event.category === intent.mainCategory, 'event category must match selected main category');
+      if (intent.castMode === 'multi') {
+        const castIds = new Set(intent.castCharacterIds ?? []);
+        requireType(castIds.size > 0, 'multi cast ids are required');
+        for (const step of value.event.steps) {
+          requireType(Array.isArray(step.activeCharacterIds), 'multi step activeCharacterIds are required');
+          requireType(step.activeCharacterIds.length >= 2 && step.activeCharacterIds.length <= 4, 'multi step must activate 2 to 4 characters');
+          requireType(new Set(step.activeCharacterIds).size === step.activeCharacterIds.length, 'multi step character ids must be unique');
+          requireType(step.activeCharacterIds.every((id) => castIds.has(id)), 'multi step character id is unknown');
+          requireType(typeof step.interaction === 'string' && step.interaction.trim(), 'multi step interaction is required');
+        }
+        requireType(new Set(value.event.steps.flatMap((step) => step.activeCharacterIds)).size >= Math.min(2, castIds.size), 'multi cast must rotate characters');
+      }
+    }
   }
   requireType(FEEDBACK.has(value.feedback?.classification), 'feedback classification is unknown');
   requireType(Array.isArray(value.actions), 'actions must be an array');
@@ -36,6 +55,16 @@ export function validateDirectorResult(value) {
   }
   for (const field of ['branches', 'risks', 'foreshadowing']) {
     requireType(Array.isArray(value[field]), `${field} must be an array`);
+  }
+  if (value.event !== null && intent.type === 'plan-event') {
+    const [minimum, maximum] = intent.castMode === 'multi' ? [4, 6] : [3, 5];
+    requireType(value.foreshadowing.length >= minimum && value.foreshadowing.length <= maximum, `foreshadowing must contain ${minimum} to ${maximum} items`);
+    for (const clue of value.foreshadowing) {
+      requireType(typeof clue?.id === 'string' && clue.id, 'foreshadowing id is required');
+      requireType(typeof clue?.conditionFactId === 'string' && clue.conditionFactId, 'foreshadowing conditionFactId is required');
+      requireType(Number.isFinite(Number(clue.maturity)), 'foreshadowing maturity is required');
+      requireType(Number.isFinite(Number(clue.threshold)), 'foreshadowing threshold is required');
+    }
   }
   if (value.leadChange != null) {
     requireType(typeof value.leadChange.nextLeadId === 'string' && value.leadChange.nextLeadId, 'lead change nextLeadId is required');
@@ -88,14 +117,15 @@ function parseJsonContent(content) {
   }
 }
 
-export function parseDirectorResponse(content, intentType = 'plan-event') {
+export function parseDirectorResponse(content, intent = 'plan-event') {
   const value = parseJsonContent(content);
+  const intentType = typeof intent === 'string' ? intent : intent?.type ?? 'plan-event';
   if (intentType === 'evaluate-reaction') return validateReactionResult(value);
   if (intentType === 'prepare-step') return validateStepResult(value);
   if (intentType === 'profile-character') return validateProfileResult(value);
-  return validateDirectorResult(normalizeDirectorResult(value));
+  return validateDirectorResult(normalizeDirectorResult(value), typeof intent === 'string' ? { type: intent } : intent);
 }
 
 export function parseDirectorResult(content) {
-  return parseDirectorResponse(content, 'plan-event');
+  return validateDirectorResult(normalizeDirectorResult(parseJsonContent(content)));
 }

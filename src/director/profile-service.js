@@ -1,4 +1,4 @@
-function profileSources(card = {}, entries = []) {
+function profileSources(card = {}, entries = [], cast = null) {
   return {
     card: {
       name: card.name ?? '',
@@ -12,6 +12,11 @@ function profileSources(card = {}, entries = []) {
       name: entry.name ?? '',
       content: entry.content ?? entry.text ?? '',
     })),
+    cast: cast ? {
+      mode: cast.mode ?? 'single',
+      members: cast.members ?? [],
+      relations: cast.relations ?? [],
+    } : null,
   };
 }
 
@@ -26,34 +31,57 @@ function fingerprint(value) {
 }
 
 export function createProfileService({ client }) {
-  async function generate({ state, card, entries, connection }) {
-    const sources = profileSources(card, entries);
+  const inFlight = new Map();
+  async function generate({ state, card, cast, entries, connection }) {
+    const sources = profileSources(card, entries, cast);
     const sourceFingerprint = fingerprint(sources);
-    state.personalityProfile = { ...state.personalityProfile, status: 'generating', error: '' };
+    const previous = { ...state.personalityProfile };
+    if (connection?.mode !== 'independent' || !connection.endpoint || !connection.model) {
+      state.personalityProfile = { ...state.personalityProfile, status: 'failed', error: '还没连接副 API' };
+      return state.personalityProfile;
+    }
+    state.personalityProfile = { ...state.personalityProfile, status: 'generating', error: '', activeFingerprint: sourceFingerprint };
     try {
       const result = await client.requestDirector({ context: sources, intent: { type: 'profile-character' } }, connection);
       state.personalityProfile = {
-        status: 'ready', fingerprint: sourceFingerprint, content: result.content,
+        status: 'ready', fingerprint: sourceFingerprint, activeFingerprint: sourceFingerprint, ignoredFingerprint: '', content: result.content,
         citations: result.citations, generatedAt: new Date().toISOString(), error: '',
       };
     } catch (error) {
-      state.personalityProfile = { ...state.personalityProfile, status: 'failed', error: error.message };
+      state.personalityProfile = previous.content
+        ? { ...previous, status: 'stale-pending', activeFingerprint: sourceFingerprint, error: error.message }
+        : { ...state.personalityProfile, status: 'failed', error: error.message };
     }
     return state.personalityProfile;
   }
 
   return {
     async ensureProfile(options) {
-      const sources = profileSources(options.card, options.entries);
+      const sources = profileSources(options.card, options.entries, options.cast);
       const sourceFingerprint = fingerprint(sources);
       const profile = options.state.personalityProfile;
-      if (profile?.status === 'ready' && profile.fingerprint !== sourceFingerprint) {
-        profile.status = 'stale';
+      if (profile?.fingerprint && profile.fingerprint !== sourceFingerprint && profile.ignoredFingerprint !== sourceFingerprint) {
+        profile.status = 'stale-pending';
+        profile.activeFingerprint = sourceFingerprint;
         return profile;
       }
+      if (profile?.status === 'stale-pending' || profile?.status === 'ready-ignored') return profile;
       if (profile?.content) return profile;
-      return generate(options);
+      const key = options.state.chatKey ?? 'profile';
+      if (!inFlight.has(key)) inFlight.set(key, generate(options).finally(() => inFlight.delete(key)));
+      return inFlight.get(key);
     },
-    refreshProfile: generate,
+    refreshProfile(options) {
+      const key = options.state.chatKey ?? 'profile';
+      if (!inFlight.has(key)) inFlight.set(key, generate(options).finally(() => inFlight.delete(key)));
+      return inFlight.get(key);
+    },
+    ignoreProfile({ state, fingerprint: ignoredFingerprint }) {
+      const profile = state.personalityProfile ?? {};
+      profile.status = 'ready-ignored';
+      profile.ignoredFingerprint = ignoredFingerprint ?? profile.activeFingerprint ?? '';
+      state.personalityProfile = profile;
+      return profile;
+    },
   };
 }

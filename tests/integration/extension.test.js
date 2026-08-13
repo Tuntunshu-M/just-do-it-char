@@ -19,6 +19,10 @@ test('extension reloads chat state and clears the world-book cache after chat ch
   assert.match(source, /chatKey = hostAdapter\.getCurrentChatKey\(\)/);
   assert.match(source, /CHAT_CHANGED/);
   assert.match(source, /worldBookCache\.clear\(\)/);
+  assert.match(source, /const loadSelectedWorldBooks = async \(\) =>/);
+  assert.match(source, /await Promise\.all\(selectedBooks\.map\(\(name\) => loadWorldInfoBook\(name\)\)\)/);
+  assert.match(source, /profileService\.ensureProfile\(\{ \.\.\.profileOptions\(\), entries \}\)/);
+  assert.match(source, /profileService\.refreshProfile\(\{ \.\.\.profileOptions\(\), entries: included \}\)/);
   assert.match(source, /GENERATION_ENDED/);
   assert.match(source, /pipeline\.clearTurnInjection\(\)/);
   assert.match(source, /pipeline\.handleUserMessage\(message\?\.mes \?\? '', messageIndex\)/);

@@ -157,7 +157,7 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
     } else {
       throw new Error(`Unknown director connection mode: ${connection.mode}`);
     }
-    return parseDirectorResponse(content, intent?.type ?? 'plan-event');
+    return parseDirectorResponse(content, intent ?? { type: 'plan-event' });
   }
 
   async function testConnection(connection) {

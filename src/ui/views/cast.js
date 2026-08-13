@@ -26,11 +26,13 @@ export function renderCastView({ body, state, settings, services }) {
   const correct = el(doc, 'button', { type: 'button' }, '校正人物');
   correct.onclick = () => showCastCorrectionDialog(body, state.cast ?? { members: [] }, (correction) => runAction(() => services.correctCast?.(correction), services.notice));
   body.append(correct);
-  if (profile.status === 'stale') {
-    body.append(el(doc, 'p', { class: 'stpd-alert' }, '角色资料已变化，人物侧写需要刷新。'));
-    const refresh = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '刷新人物侧写');
+  if (profile.status === 'stale-pending') {
+    body.append(el(doc, 'p', { class: 'stpd-alert' }, '角色资料有改动，要重新生成侧写吗？'));
+    const refresh = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '重新生成侧写');
     refresh.onclick = () => runAction(() => services.refreshPersonalityProfile?.(), services.notice);
-    body.append(refresh);
+    const ignore = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '暂时不用');
+    ignore.onclick = () => runAction(() => services.ignorePersonalityProfile?.(), services.notice);
+    body.append(refresh, ignore);
   } else if (profile.status === 'generating') {
     body.append(el(doc, 'p', { class: 'stpd-muted' }, '正在生成压缩人物侧写…'));
   } else if (profile.status === 'failed') {

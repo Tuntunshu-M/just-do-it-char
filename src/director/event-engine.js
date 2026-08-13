@@ -20,6 +20,7 @@ export function createEventEngine(store) {
       currentStepIndex,
       status: plan.steps?.length ? 'awaiting-user' : 'completed',
       facts: cloneValue(plan.facts ?? []),
+      foreshadowing: cloneValue(plan.foreshadowing ?? []),
       revisions: cloneValue(plan.revisions ?? []),
       lastEvaluatedUserMessageId: plan.lastEvaluatedUserMessageId ?? null,
       pendingTurn: null,
@@ -59,6 +60,21 @@ export function createEventEngine(store) {
       state.pendingTransaction = null;
       return state;
     }); },
+    getEligibleForeshadowing(chatKey, fingerprint) {
+      const state = store.loadChat(chatKey);
+      const event = state.activeEvent;
+      const index = event?.currentStepIndex ?? 0;
+      const currentId = event?.steps?.[index]?.id;
+      const occurred = new Set((event?.facts ?? []).filter((fact) => fact?.occurred).map((fact) => fact.id));
+      return (event?.foreshadowing ?? []).filter((clue) => {
+        const mature = Number.isFinite(Number(clue.maturity))
+          && Number.isFinite(Number(clue.threshold))
+          && Number(clue.maturity) >= Number(clue.threshold);
+        const revealMatches = !clue.revealStepId || clue.revealStepId === currentId;
+        const conditionMet = occurred.has(clue.conditionFactId);
+        return mature && revealMatches && conditionMet;
+      }).map((clue) => cloneValue(clue));
+    },
     applyReaction(chatKey, fingerprint, reaction, retention = 3) { return tx(chatKey, fingerprint, (state) => {
       const event = state.activeEvent;
       if (!event) throw new Error('No active event');

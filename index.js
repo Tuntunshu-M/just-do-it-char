@@ -176,6 +176,28 @@ export function initializeExtension() {
     }
     return selectedWorldEntries(books, settings.context.worldInfoBooks ?? {});
   };
+  const loadSelectedWorldBooks = async () => {
+    if (!settings.context.worldInfo) return [];
+    const selectedBooks = Object.keys(settings.context.worldInfoBooks ?? {});
+    if (!selectedBooks.length) return [];
+    await Promise.all(selectedBooks.map((name) => loadWorldInfoBook(name)));
+    return cachedSelectedEntries();
+  };
+  const profileOptions = () => ({
+    state,
+    card: hostAdapter.getCharacterData(),
+    cast: state.cast,
+    entries: settings.context.worldInfo ? cachedSelectedEntries() : [],
+    connection: settings.connection,
+  });
+  const ensureCurrentProfile = async ({ notify = true } = {}) => {
+    if (!chatKey || isGroupChat()) return;
+    const entries = await loadSelectedWorldBooks();
+    const result = await profileService.ensureProfile({ ...profileOptions(), entries });
+    await store.saveChat(state);
+    if (notify && result.error === '还没连接副 API') notice('还没连接副 API');
+    rerender();
+  };
   const downloadSnapshot = (options) => {
     const snapshot = exportSnapshot(state, options);
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
@@ -204,7 +226,11 @@ export function initializeExtension() {
   consoleInstance = createDirectorConsole({
     root,
     services: {
-      saveSettings: (next) => store.saveGlobal(next),
+      saveSettings: async (next) => {
+        await store.saveGlobal(next);
+        settings = store.loadGlobal();
+        await ensureCurrentProfile({ notify: false });
+      },
       saveState: (next) => store.saveChat(next),
       previewTheme: (value) => theme.preview(value),
       confirm: (message) => hostAdapter.showConfirm(message),
@@ -217,18 +243,17 @@ export function initializeExtension() {
         return book;
       },
       personalityProfile: (contextSettings) => {
-        const included = contextSettings?.worldInfo ? cachedSelectedEntries() : [];
         const card = hostAdapter.getCharacterData();
-        if (state.personalityProfile?.content) return { ...state.personalityProfile, name: card?.name ?? '' };
-        profileService.ensureProfile({ state, card, entries: included, connection: settings.connection })
-          .then(() => store.saveChat(state))
-          .then(() => rerender())
-          .catch(() => rerender());
-        return { status: 'generating', name: card?.name ?? '', lines: [], sources: [] };
+        return { ...state.personalityProfile, name: card?.name ?? '' };
       },
       refreshPersonalityProfile: async () => {
-        const included = settings.context.worldInfo ? cachedSelectedEntries() : [];
-        await profileService.refreshProfile({ state, card: hostAdapter.getCharacterData(), entries: included, connection: settings.connection });
+        const included = await loadSelectedWorldBooks();
+        await profileService.refreshProfile({ ...profileOptions(), entries: included });
+        await store.saveChat(state);
+        refresh();
+      },
+      ignorePersonalityProfile: async () => {
+        profileService.ignoreProfile({ state });
         await store.saveChat(state);
         refresh();
       },
@@ -303,6 +328,7 @@ export function initializeExtension() {
     state.status = 'paused';
     rerender();
   }
+  else ensureCurrentProfile().catch((error) => console.error('[导演时间] profile', error));
   const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
   unsubscribers.push(hostAdapter.on(chatEvent, () => {
     pipeline.cancel();
@@ -311,6 +337,7 @@ export function initializeExtension() {
     if (isGroupChat()) state.status = 'paused';
     rerender();
     worldBookCache.clear();
+    if (!isGroupChat()) ensureCurrentProfile().catch((error) => console.error('[导演时间] profile', error));
   }));
   for (const eventName of [eventTypes.GENERATION_ENDED ?? 'GENERATION_ENDED', eventTypes.GENERATION_STOPPED ?? 'GENERATION_STOPPED']) {
     unsubscribers.push(hostAdapter.on(eventName, () => pipeline.clearTurnInjection().catch((error) => console.error('[导演时间]', error))));

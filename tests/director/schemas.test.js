@@ -47,3 +47,54 @@ test('reaction, step, and profile contracts are independent from event planning'
   assert.deepEqual(validateProfileResult({ content: 'Calm and observant.', citations: [{ source: 'card:description', excerpt: 'calm' }] }).citations.length, 1);
   assert.throws(() => validateReactionResult({ decision: 'invalid' }), /decision/i);
 });
+
+function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
+  return {
+    event: {
+      title: 'Plan', category,
+      steps: Array.from({ length: steps }, (_, index) => ({ id: `s${index + 1}`, goal: `goal ${index + 1}` })),
+    },
+    feedback: { classification: 'neutral', confidence: 1, reason: 'ok' },
+    actions: [], branches: [], risks: [],
+    foreshadowing: Array.from({ length: clues }, (_, index) => ({
+      id: `f${index + 1}`,
+      conditionFactId: `fact-${index + 1}`,
+      maturity: 0,
+      threshold: 1,
+    })),
+    ruleLedgerUpdate: {}, injection: 'Prepare the first stage.',
+  };
+}
+
+test('event schema enforces five to seven unique stages', () => {
+  assert.throws(() => validateDirectorResult(plannedResult({ steps: 4 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /5 to 7/);
+  assert.throws(() => validateDirectorResult(plannedResult({ steps: 8 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /5 to 7/);
+  const duplicate = plannedResult(); duplicate.event.steps[1].id = duplicate.event.steps[0].id;
+  assert.throws(() => validateDirectorResult(duplicate, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /unique/);
+});
+
+test('event schema enforces cast-specific foreshadowing counts and selected category', () => {
+  assert.doesNotThrow(() => validateDirectorResult(plannedResult(), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+  assert.throws(() => validateDirectorResult(plannedResult({ clues: 2 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /3 to 5/);
+  const multi = plannedResult({ clues: 3 });
+  multi.event.steps = multi.event.steps.map((step) => ({ ...step, activeCharacterIds: ['a', 'b'], interaction: 'They cooperate.' }));
+  assert.throws(() => validateDirectorResult(multi, { type: 'plan-event', castMode: 'multi', castCharacterIds: ['a', 'b'], mainCategory: 'daily' }), /4 to 6/);
+  assert.throws(() => validateDirectorResult(plannedResult({ category: 'crisis' }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /selected main category/);
+});
+
+test('multi-cast stages require two to four known active characters and interaction', () => {
+  const result = plannedResult({ clues: 4 });
+  result.event.steps = result.event.steps.map((step, index) => ({
+    ...step,
+    activeCharacterIds: index % 2 ? ['b', 'c'] : ['a', 'b'],
+    interaction: 'They cooperate and challenge each other.',
+  }));
+  const intent = { type: 'plan-event', castMode: 'multi', castCharacterIds: ['a', 'b', 'c'], mainCategory: 'daily' };
+  assert.doesNotThrow(() => validateDirectorResult(result, intent));
+  const missingInteraction = structuredClone(result);
+  missingInteraction.event.steps[0].interaction = '';
+  assert.throws(() => validateDirectorResult(missingInteraction, intent), /interaction/);
+  const unknownCharacter = structuredClone(result);
+  unknownCharacter.event.steps[0].activeCharacterIds = ['a', 'unknown'];
+  assert.throws(() => validateDirectorResult(unknownCharacter, intent), /unknown/);
+});

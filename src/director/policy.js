@@ -6,6 +6,28 @@ export function normalizeWeights(categories = {}) {
   return Object.fromEntries(enabled.map(([key, value]) => [key, Number(value.weight) / total]));
 }
 
+export function selectEventCategory(categories = {}, { random = Math.random, requestedCategory } = {}) {
+  const weights = normalizeWeights(categories);
+  const enabled = Object.keys(weights);
+  if (!enabled.length) return { mainCategory: 'daily', auxiliaryTones: {} };
+  const requested = requestedCategory && weights[requestedCategory] ? requestedCategory : null;
+  const mainCategory = requested ?? (() => {
+    const value = Math.max(0, Math.min(0.999999999, Number(random())));
+    let cursor = 0;
+    for (const key of enabled) {
+      cursor += weights[key];
+      if (value < cursor) return key;
+    }
+    return enabled.at(-1);
+  })();
+  const others = enabled.filter((key) => key !== mainCategory);
+  const total = others.reduce((sum, key) => sum + weights[key], 0);
+  return {
+    mainCategory,
+    auxiliaryTones: Object.fromEntries(others.map((key) => [key, total ? weights[key] / total : 0])),
+  };
+}
+
 function stopState(state) {
   state.activeEvent = null;
   state.pendingTransaction = null;

@@ -4,7 +4,7 @@ import { createEventEngine } from '../../src/director/event-engine.js';
 
 function fixture() {
   const state = { activeEvent: null, foreshadowing: [], pendingTransaction: null, status: 'idle', historySummary: '' };
-  const store = { transaction: async (_key, _fp, work) => work(state) };
+  const store = { transaction: async (_key, _fp, work) => work(state), loadChat: () => state };
   return { state, engine: createEventEngine(store) };
 }
 
@@ -43,6 +43,23 @@ test('foreshadowing promotes only when mature', async () => {
   state.foreshadowing = [{ id: 'f1', maturity: 2, threshold: 2, title: '线索' }];
   await engine.promoteForeshadowing('c', 'f', 'f1');
   assert.equal(state.activeEvent.title, '线索');
+});
+
+test('only mature clues matching the current reveal stage and facts are eligible', async () => {
+  const { engine, state } = fixture();
+  await engine.activatePlan('c', 'f', {
+    title: 'Plan', steps: [{ id: 's1' }, { id: 's2' }], facts: [{ id: 'door-open', occurred: true }],
+    foreshadowing: [
+      { id: 'ready', maturity: 2, threshold: 2, revealStepId: 's1', conditionFactId: 'door-open' },
+      { id: 'future', maturity: 2, threshold: 2, revealStepId: 's2' },
+      { id: 'immature', maturity: 0, threshold: 1, revealStepId: 's1' },
+      { id: 'missing-fact', maturity: 1, threshold: 1, revealStepId: 's1', conditionFactId: 'unknown' },
+      { id: 'missing-thresholds', revealStepId: 's1', conditionFactId: 'door-open' },
+      { id: 'missing-condition', maturity: 1, threshold: 1, revealStepId: 's1' },
+    ],
+  });
+  assert.deepEqual(engine.getEligibleForeshadowing('c', 'f').map((clue) => clue.id), ['ready']);
+  assert.equal(state.activeEvent.foreshadowing.length, 6);
 });
 
 test('activating a plan waits for a real user turn', async () => {

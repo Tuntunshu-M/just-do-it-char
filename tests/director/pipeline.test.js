@@ -4,7 +4,8 @@ import { createDirectorPipeline } from '../../src/director/pipeline.js';
 
 function harness({ state, response, settings = {} } = {}) {
   const order = [];
-  const current = state ?? { chatKey: 'c', characterFingerprint: 'f', status: 'idle', activeEvent: null, preference: {}, sceneSafety: {}, counters: {}, cooldowns: {} };
+  const current = state ?? { chatKey: 'c', characterFingerprint: 'f', status: 'idle', activeEvent: null, personalityProfile: { status: 'ready', content: 'profile' }, preference: {}, sceneSafety: {}, counters: {}, cooldowns: {} };
+  current.personalityProfile ??= { status: 'ready', content: 'profile' };
   const global = { enabled: true, connection: {}, defaults: { revisionRetention: 3 }, ...settings };
   const pipeline = createDirectorPipeline({
     adapter: {
@@ -69,4 +70,11 @@ test('a missing event does not inject anything', async () => {
   const result = await pipeline.handleUserMessage('x', 1);
   assert.equal(result.skipped, true);
   assert.deepEqual(order, []);
+});
+
+test('event planning waits for the profile and exposes progress', async () => {
+  const { pipeline, order } = harness({ state: { chatKey: 'c', status: 'idle', personalityProfile: { status: 'generating' } } });
+  const result = await pipeline.manualCreate('x');
+  assert.equal(result.reason, '导演还在看人设');
+  assert.deepEqual(order, ['notice:导演还在看人设']);
 });

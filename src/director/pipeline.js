@@ -1,4 +1,4 @@
-import { evaluatePolicy as defaultPolicy } from './policy.js';
+import { evaluatePolicy as defaultPolicy, selectEventCategory } from './policy.js';
 import { EXTENSION_PROMPT_KEY } from '../constants.js';
 import { startDiagnostic, updateDiagnostic } from '../diagnostics/records.js';
 import { formatDirectorDiagnostic } from './failure-reasons.js';
@@ -44,6 +44,14 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     const settings = store.loadGlobal();
     if (!settings.enabled) return { skipped: true };
     const state = store.loadChat(chatKey);
+    const profile = state.personalityProfile ?? {};
+    if (!['ready', 'ready-ignored'].includes(profile.status)) {
+      const reason = profile.status === 'stale-pending'
+        ? '角色资料有改动，要重新生成侧写吗？'
+        : profile.error === '还没连接副 API' ? profile.error : '导演还在看人设';
+      onNotice?.(reason);
+      return { skipped: true, reason };
+    }
     const secrets = settings.connection ?? {};
     const diagnostic = startDiagnostic(state, { trigger: intent.type, stage: 'collecting' }, { secrets });
     let stage = 'collecting';
@@ -51,7 +59,16 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       await persist(state, 'collecting');
       const context = await collector(adapter, state, settings);
       stage = 'generating'; await persist(state, stage);
-      const result = await request(context, { ...intent, type: 'plan-event', userText: text }, settings.connection, state);
+      const category = selectEventCategory(settings.categories, { requestedCategory: intent.requestedCategory });
+      const eventIntent = {
+        ...intent,
+        type: 'plan-event',
+        userText: text,
+        ...category,
+        castMode: state.cast?.mode ?? 'single',
+        castCharacterIds: state.cast?.members?.map((member) => member.id).filter(Boolean) ?? [],
+      };
+      const result = await request(context, eventIntent, settings.connection, state);
       if (token !== generation || adapter.getCurrentChatKey() !== chatKey) return { cancelled: true };
       await store.saveGlobal?.(settings);
       if (!result.event) {
@@ -96,7 +113,17 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     }
     const current = state.activeEvent?.steps?.[state.activeEvent.currentStepIndex];
     if (!current || state.activeEvent.status === 'completed') return { status: 'completed' };
-    const result = await request({ ...context, currentStep: current, latestUserMessage: text }, { type: 'prepare-step' }, settings.connection, state);
+    const eligibleForeshadowing = engine.getEligibleForeshadowing?.(chatKey, state.characterFingerprint) ?? [];
+    const stepContext = {
+      latestUserMessage: text,
+      currentStep: current,
+      activeCharacters: current.activeCharacterIds ?? current.characterIds ?? [],
+      occurredFacts: state.activeEvent?.facts ?? [],
+      characterKnowledge: context.cast?.members?.map((member) => ({ id: member.id, knowledgeState: member.knowledgeState ?? '' })) ?? [],
+      eligibleForeshadowing,
+      personalityProfile: context.personalityProfile,
+    };
+    const result = await request(stepContext, { type: 'prepare-step' }, settings.connection, state);
     if (token !== generation || adapter.getCurrentChatKey() !== chatKey) return { cancelled: true };
     await adapter.injectPrompt(EXTENSION_PROMPT_KEY, result.injection);
     state.activeEvent.pendingTurn = { messageId, stepId: current.id, injection: result.injection };
