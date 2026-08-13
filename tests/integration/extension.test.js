@@ -156,3 +156,63 @@ test('native menu entry prefers the visible modern extensions drawer', async () 
     globalThis.requestAnimationFrame = previousAnimationFrame;
   }
 });
+
+test('native menu entry moves into the modern extensions drawer when it appears later', async () => {
+  const { mountWandEntry } = await import('../../index.js');
+  const byId = new Map();
+  const make = (tagName) => {
+    const listeners = new Map();
+    const classes = new Set();
+    return {
+      tagName,
+      children: [],
+      parentElement: null,
+      classList: { contains: (name) => classes.has(name) },
+      set className(value) { classes.clear(); value.split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); },
+      get className() { return [...classes].join(' '); },
+      set id(value) { this._id = value; byId.set(value, this); },
+      get id() { return this._id; },
+      append(...children) {
+        children.forEach((child) => {
+          if (child.parentElement) child.parentElement.children = child.parentElement.children.filter((item) => item !== child);
+          child.parentElement = this;
+          this.children.push(child);
+        });
+      },
+      setAttribute() {},
+      addEventListener(type, listener) { listeners.set(type, listener); },
+      dispatchEvent(event) { listeners.get(event.type)?.(event); },
+      remove() {
+        if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((item) => item !== this);
+        byId.delete(this.id);
+      },
+    };
+  };
+  const oldMenu = make('div'); oldMenu.id = 'extensionsMenu';
+  const modernMenu = make('div'); modernMenu.id = 'rm_extensions_block';
+  let modernAvailable = false;
+  const previousDocument = globalThis.document;
+  const previousAnimationFrame = globalThis.requestAnimationFrame;
+  globalThis.document = {
+    createElement: (tagName) => make(tagName),
+    querySelectorAll: () => modernAvailable ? [modernMenu, oldMenu] : [oldMenu],
+    querySelector: (selector) => byId.get(selector.slice(1)) ?? null,
+  };
+  globalThis.requestAnimationFrame = (callback) => { callback(); return 1; };
+  try {
+    let opened = 0;
+    mountWandEntry(() => { opened += 1; });
+    assert.equal(byId.get('stpd-menu-container').parentElement, oldMenu);
+
+    modernAvailable = true;
+    mountWandEntry(() => { opened += 1; });
+    const entry = byId.get('stpd-menu-entry');
+    entry.dispatchEvent({ type: 'click', preventDefault() {} });
+
+    assert.equal(byId.get('stpd-menu-container').parentElement, modernMenu);
+    assert.equal(opened, 1);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.requestAnimationFrame = previousAnimationFrame;
+  }
+});

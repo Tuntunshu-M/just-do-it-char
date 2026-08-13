@@ -63,16 +63,16 @@ export function mountWandEntry(openConsole) {
   const menus = typeof document.querySelectorAll === 'function'
     ? [...document.querySelectorAll('#rm_extensions_block, #extensionsMenu')]
     : [document.querySelector('#rm_extensions_block'), document.querySelector('#extensionsMenu')].filter(Boolean);
-  const visibleDrawer = menus.find((candidate) => {
-    const drawer = candidate.closest?.('.drawer');
-    return drawer && drawer.getBoundingClientRect().width > 0;
-  });
-  const menu = visibleDrawer
+  const menu = menus.find((candidate) => candidate.id === 'rm_extensions_block')
     ?? menus.find((candidate) => candidate.id === 'extensionsMenu')
     ?? (typeof document.querySelectorAll === 'function' ? null : menus[0]);
   if (!menu) return () => {};
   const existing = document.querySelector('#stpd-menu-entry');
-  if (existing) existing.__stpdOpenConsole = openConsole;
+  if (existing) {
+    existing.__stpdOpenConsole = openConsole;
+    const container = document.querySelector('#stpd-menu-container');
+    if (container && container.parentElement !== menu) menu.append(container);
+  }
   else {
     const container = document.createElement('div');
     container.id = 'stpd-menu-container';
