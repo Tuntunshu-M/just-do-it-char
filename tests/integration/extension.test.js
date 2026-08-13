@@ -29,8 +29,16 @@ test('event outcomes produce immediate guidance for failed and unsuccessful atte
   const { eventOutcomeNotice } = await import('../../index.js');
 
   assert.equal(
-    eventOutcomeNotice({ status: 'failed', stage: 'generating', message: '模型返回无效 JSON' }),
-    '事件生成失败（导演生成）：模型返回无效 JSON。可在 设置 → 检查 查看详情。',
+    eventOutcomeNotice({ status: 'failed', stage: 'generating', message: 'Director API returned empty content' }),
+    '事件生成失败（导演生成）：模型返回空内容。可在 设置 → 检查 查看详情。',
+  );
+  assert.equal(
+    eventOutcomeNotice({ status: 'failed', stage: 'generating', message: 'Unexpected end of JSON input' }),
+    '事件生成失败（导演生成）：模型输出被截断。可在 设置 → 检查 查看详情。',
+  );
+  assert.equal(
+    eventOutcomeNotice({ status: 'failed', stage: 'generating', message: 'Invalid director result: event must be an object or null' }),
+    '事件生成失败（导演生成）：模型返回的数据结构不符合要求。可在 设置 → 检查 查看详情。',
   );
   assert.equal(
     eventOutcomeNotice({ status: 'not-generated', stage: 'policy', message: '触及硬禁区' }),

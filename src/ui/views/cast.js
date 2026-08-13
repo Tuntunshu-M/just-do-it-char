@@ -1,6 +1,20 @@
 import { el, field, runAction } from '../dom.js';
 import { showCastCorrectionDialog } from '../dialogs/cast-correction.js';
 
+function compactLine(value, limit = 180) {
+  const line = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return line.length > limit ? `${line.slice(0, limit)}…` : line;
+}
+
+function disclosure(doc, label, values, className = '') {
+  const details = el(doc, 'details', { class: `stpd-collapsible ${className}`.trim() });
+  details.append(el(doc, 'summary', {}, `${label}（${values.length}）`));
+  const list = el(doc, 'ul', { class: 'stpd-profile-list' });
+  for (const value of values) list.append(el(doc, 'li', {}, value));
+  details.append(list);
+  return details;
+}
+
 export function renderCastView({ body, state, settings, services }) {
   const doc = body.ownerDocument;
   const profile = services.personalityProfile?.(settings.context) ?? { name: '', lines: [], sources: [] };
@@ -13,8 +27,12 @@ export function renderCastView({ body, state, settings, services }) {
   correct.onclick = () => showCastCorrectionDialog(body, state.cast ?? { members: [] }, (correction) => runAction(() => services.correctCast?.(correction), services.notice));
   body.append(correct);
   if (profile.lines.length) {
-    const list = el(doc, 'ul', { class: 'stpd-profile-list' });
-    for (const line of profile.lines) list.append(el(doc, 'li', {}, line));
-    body.append(list, el(doc, 'p', { class: 'stpd-muted' }, `已纳入 ${profile.sources.length} 项人物证据`));
+    const preview = el(doc, 'ul', { class: 'stpd-profile-list stpd-profile-preview' });
+    for (const line of profile.lines.slice(0, 3)) preview.append(el(doc, 'li', {}, compactLine(line)));
+    body.append(
+      preview,
+      disclosure(doc, '全部侧写', profile.lines),
+      disclosure(doc, '引用资料', profile.sources, 'stpd-evidence-list'),
+    );
   } else body.append(el(doc, 'p', { class: 'stpd-muted' }, '暂无人物资料，请先选择角色或填写世界书条目。'));
 }

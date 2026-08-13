@@ -16,8 +16,8 @@ test('prompt includes a complete required JSON contract and null-event fallback'
     assert.match(system.content, new RegExp(`"${field}"`));
   }
   assert.match(system.content, /"event"\s*:\s*null/);
-  assert.match(system.content, /exactly one JSON object/i);
-  assert.match(system.content, /never omit required fields/i);
+  assert.match(system.content, /只输出一个 JSON 对象/);
+  assert.match(system.content, /所有字段都必须保留/);
 });
 
 test('prompt defines every required action field', () => {
@@ -25,4 +25,14 @@ test('prompt defines every required action field', () => {
   assert.match(system.content, /"characterId"\s*:/);
   assert.match(system.content, /"action"\s*:/);
   assert.match(system.content, /"evidence"\s*:/);
+});
+
+test('prompt prioritizes a complete compact JSON object and shows a valid created event', () => {
+  const [system] = buildDirectorMessages({}, { type: 'manual' });
+  assert.match(system.content, /event.*只能.*对象.*null/is);
+  assert.match(system.content, /优先保证.*JSON.*完整/is);
+  assert.match(system.content, /缩短.*文字/is);
+  assert.match(system.content, /900.*字/);
+  assert.match(system.content, /"event"\s*:\s*\{[\s\S]*"title"\s*:/);
+  assert.match(system.content, /无法.*完整.*"event"\s*:\s*null/is);
 });

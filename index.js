@@ -16,6 +16,7 @@ import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 import { selectedWorldEntries } from './src/world-info/selection.js';
 import { runDiagnostics } from './src/diagnostics/inspector.js';
 import { formatDiagnosticReport } from './src/diagnostics/records.js';
+import { classifyDirectorFailure } from './src/director/failure-reasons.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -39,7 +40,9 @@ export function eventOutcomeNotice(outcome = {}) {
   if (!['failed', 'not-generated'].includes(outcome.status)) return '';
   const result = outcome.status === 'failed' ? '事件生成失败' : '事件未生成';
   const stage = OUTCOME_STAGE_LABELS[outcome.stage] ?? outcome.stage ?? '未知阶段';
-  const message = outcome.message || (outcome.status === 'failed' ? '发生未知错误' : '本次判断没有创建事件');
+  const message = outcome.status === 'failed'
+    ? classifyDirectorFailure(outcome.message)
+    : (outcome.message || '本次判断没有创建事件');
   return `${result}（${stage}）：${message}。可在 设置 → 检查 查看详情。`;
 }
 

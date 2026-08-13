@@ -78,7 +78,13 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
       }
       if (connection.stream) return readStream(response.body, connection.onUpdate);
       const payload = await response.json();
-      return extractResponseContent(payload);
+      const content = extractResponseContent(payload);
+      if (payload?.choices?.[0]?.finish_reason === 'length') {
+        const error = new Error('Director API finish_reason: length');
+        error.name = 'DirectorTruncationError';
+        throw error;
+      }
+      return content;
     } catch (error) {
       if (controller.signal.aborted || error?.name === 'AbortError') {
         const timeoutError = new Error('导演 API 请求超时，请检查连接或增加超时时间。');

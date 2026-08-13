@@ -1,6 +1,7 @@
 import { evaluatePolicy as defaultPolicy } from './policy.js';
 import { EXTENSION_PROMPT_KEY } from '../constants.js';
 import { startDiagnostic, updateDiagnostic } from '../diagnostics/records.js';
+import { formatDirectorDiagnostic } from './failure-reasons.js';
 
 function generationState(phase, previous = {}, error = '') {
   const finished = ['idle', 'completed', 'failed'].includes(phase);
@@ -77,7 +78,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       result = await requestWithPersonality(context, intent, settings.connection, state, setDiagnosticStage);
     } catch (error) {
       await persist(state, 'failed', error.message);
-      await finishDiagnostic('failed', error.message);
+      await finishDiagnostic('failed', formatDirectorDiagnostic(error));
       throw error;
     }
 
@@ -138,7 +139,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     } catch (error) {
       if (staged) await engine.rollback(chatKey, state.characterFingerprint);
       await persist(state, 'failed', error.message);
-      await finishDiagnostic('failed', error.message);
+      await finishDiagnostic('failed', formatDirectorDiagnostic(error));
       throw error;
     } finally {
       if (!injectionCleared) await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');

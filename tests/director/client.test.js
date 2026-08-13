@@ -51,6 +51,20 @@ test('independent non-streaming client joins structured content arrays', async (
   assert.deepEqual(output, result);
 });
 
+test('independent non-streaming client reports token-limit truncation', async () => {
+  const client = createDirectorClient({ adapter: {}, fetchImpl: async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ finish_reason: 'length', message: { content: '{"event":' } }] }),
+  }) });
+  await assert.rejects(
+    client.requestDirector(
+      { context: {}, intent: {} },
+      { mode: 'independent', endpoint: 'https://api.test/v1', model: 'model', stream: false },
+    ),
+    (error) => error.name === 'DirectorTruncationError' && /finish_reason: length/.test(error.message),
+  );
+});
+
 test('independent client lists models from the compatible API', async () => {
   const client = createDirectorClient({ adapter: {}, fetchImpl: async (url, options) => {
     assert.equal(url, 'https://api.test/v1/models');

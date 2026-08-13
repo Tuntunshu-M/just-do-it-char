@@ -99,6 +99,16 @@ test('cast view exposes replace, merge, and split correction workflows', async (
   assert.match(text, /correctCast/);
 });
 
+test('cast view keeps full profiles and evidence sources folded by default', async () => {
+  const text = await uiSource('views/cast.js');
+  assert.match(text, /profile\.lines\.slice\(0, 3\)/);
+  assert.match(text, /'details'/);
+  assert.match(text, /全部侧写/);
+  assert.match(text, /引用资料/);
+  assert.match(text, /stpd-collapsible/);
+  assert.doesNotMatch(text, /open:\s*true/);
+});
+
 test('snapshot import dialog renders summary and warnings before apply', async () => {
   const text = await uiSource('dialogs/snapshot-import.js');
   for (const label of ['导入预览', '活动事件', '伏笔', '人物', '安全设置', '确认导入']) assert.match(text, new RegExp(label));
