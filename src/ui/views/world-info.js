@@ -1,4 +1,4 @@
-import { el, field, runAction } from '../dom.js';
+import { el, field, runAction, selectField } from '../dom.js';
 import { bookSelectionState, setBookSelected, setEntrySelected, worldEntryKey } from '../../world-info/selection.js';
 
 const settingsViewStates = new WeakMap();
@@ -49,6 +49,16 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
   };
   const selection = settings.context.worldInfoBooks ??= {};
   const names = services.worldInfoNames?.() ?? [];
+  body.append(
+    el(doc, 'p', { class: 'stpd-muted' }, '这里只读取角色卡和世界书资料。人物侧写、剧本、阶段、伏笔和进度不会写入任何世界书。'),
+    selectField(doc, '世界书勾选保存', settings.context.worldInfoSelectionPolicy ?? 'preserve', [
+      ['preserve', '始终保留选择'],
+      ['clear-on-chat-change', '进入新聊天时取消全部勾选'],
+    ], (value) => {
+      settings.context.worldInfoSelectionPolicy = value;
+      saveSettings();
+    }),
+  );
   const enabled = el(doc, 'input', { type: 'checkbox', checked: settings.context.worldInfo });
   enabled.onchange = () => { settings.context.worldInfo = enabled.checked; saveSettings(); rerenderInPlace(); };
   body.append(field(doc, '读取世界书', enabled));
@@ -136,7 +146,6 @@ export function renderWorldInfoView({ body, settings, services, saveSettings, re
           captureScroll();
           setEntrySelected(selection, name, entry, input.checked);
           await saveSettings();
-          rerenderInPlace();
         }, services.notice);
         entriesNode.append(field(doc, entryLabel(entry), input));
       }

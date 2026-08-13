@@ -19,6 +19,7 @@ import { classifyDirectorFailure } from './src/director/failure-reasons.js';
 import { createProfileService } from './src/director/profile-service.js';
 import { createScriptRepository } from './src/scripts/script-repository.js';
 import { createScriptRuntime } from './src/scripts/script-runtime.js';
+import { applyWorldSelectionPolicy } from './src/world-info/policy.js';
 
 function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
@@ -372,9 +373,13 @@ export function initializeExtension() {
   else ensureCurrentProfile().catch((error) => console.error('[导演时间] profile', error));
   const chatEvent = eventTypes.CHAT_CHANGED ?? 'CHAT_CHANGED';
   unsubscribers.push(hostAdapter.on(chatEvent, () => {
+    const previousChatKey = chatKey;
     pipeline.cancel();
     pipeline.clearTurnInjection({ resetTurn: true }).catch((error) => console.error('[导演时间]', error));
     refresh();
+    if (applyWorldSelectionPolicy(settings, previousChatKey, chatKey)) {
+      store.saveGlobal(settings).catch((error) => console.error('[导演时间] world selection policy', error));
+    }
     if (isGroupChat()) state.status = 'paused';
     rerender();
     worldBookCache.clear();
