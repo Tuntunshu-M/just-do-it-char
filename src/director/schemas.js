@@ -2,9 +2,29 @@ const FEEDBACK = new Set(['accept', 'reject', 'hesitate', 'redirect', 'neutral',
 const CATEGORIES = new Set(['daily', 'crisis', 'erotic']);
 const REACTION_DECISIONS = new Set(['advance', 'revise', 'neutral', 'stop']);
 const FORESHADOWING_STATUSES = new Set(['已回收', '未注入', '使用中', '待使用']);
+const USER_REFERENCE = String.raw`(?:\{\{\s*user\s*\}\}|user|用户)`;
+const USER_PREPLANNED_BEHAVIOR = String.raw`(?:已经|已|将要|将|会|随后|最终|必然|被迫|必须)?\s*(?:决定|选择(?!空间|机会|余地|窗口|权利)|行动(?!空间|自由|选择)|前往|接受|拒绝|受伤|摔倒|死亡|成功|失败|答应|同意|说出|做出)`;
+const USER_AGENCY_RE = new RegExp(String.raw`${USER_REFERENCE}\s*${USER_PREPLANNED_BEHAVIOR}`, 'i');
 
 function requireType(condition, message) {
   if (!condition) throw new TypeError(`Invalid director result: ${message}`);
+}
+
+function assertUserAgencySafe(value, path = 'event') {
+  if (typeof value === 'string') {
+    requireType(!USER_AGENCY_RE.test(value), `user agency is preplanned in ${path}`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertUserAgencySafe(item, `${path}[${index}]`));
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      if (key === 'userPlan') requireType(false, 'user agency field userPlan is forbidden');
+      assertUserAgencySafe(item, `${path}.${key}`);
+    }
+  }
 }
 
 function normalizeDirectorResult(value) {
@@ -28,9 +48,7 @@ export function validateDirectorResult(value, intent = {}) {
     requireType(CATEGORIES.has(value.event.category), 'event category is unknown');
     requireType(Array.isArray(value.event.steps), 'event steps are required');
     if (intent.type === 'plan-event') {
-      for (const field of ['premise', 'conflict', 'climax', 'ending']) {
-        requireType(typeof value.event[field] === 'string' && value.event[field].trim(), `event ${field} is required`);
-      }
+      requireType(typeof value.event.premise === 'string' && value.event.premise.trim(), 'event premise is required');
       requireType(value.event.steps.length >= 5 && value.event.steps.length <= 7, 'event steps must contain 5 to 7 stages');
       const stepIds = value.event.steps.map((step) => step?.id);
       requireType(stepIds.every((id) => typeof id === 'string' && id), 'event step id is required');
@@ -40,6 +58,7 @@ export function validateDirectorResult(value, intent = {}) {
         requireType(typeof step.activity === 'string' && step.activity.trim(), 'event step character activity is required');
         requireType(Array.isArray(step.splitSteps) && step.splitSteps.length > 0, 'event step splitSteps are required');
       }
+      assertUserAgencySafe(value.event);
       if (intent.mainCategory) requireType(value.event.category === intent.mainCategory, 'event category must match selected main category');
       if (intent.castMode === 'multi') {
         const castIds = new Set(intent.castCharacterIds ?? []);
@@ -50,7 +69,6 @@ export function validateDirectorResult(value, intent = {}) {
           requireType(new Set(step.activeCharacterIds).size === step.activeCharacterIds.length, 'multi step character ids must be unique');
           requireType(step.activeCharacterIds.every((id) => castIds.has(id)), 'multi step character id is unknown');
           requireType(typeof step.interaction === 'string' && step.interaction.trim(), 'multi step interaction is required');
-          requireType(typeof step.userPlan === 'string' && step.userPlan.trim(), 'multi step user plan is required');
           requireType(Array.isArray(step.characterActions), 'multi step characterActions are required');
           const actionIds = new Set(step.characterActions.map((item) => item?.characterId));
           requireType(step.activeCharacterIds.every((id) => actionIds.has(id)), 'multi step character action is required for every active character');
@@ -85,6 +103,7 @@ export function validateDirectorResult(value, intent = {}) {
       requireType(FORESHADOWING_STATUSES.has(clue.status), 'foreshadowing status is unknown');
       requireType(typeof clue.connectedStepTitle === 'string' && stepTitles.has(clue.connectedStepTitle.trim()), 'foreshadowing connected stage title is unknown');
     }
+    assertUserAgencySafe(value.foreshadowing, 'foreshadowing');
   }
   if (value.leadChange != null) {
     requireType(typeof value.leadChange.nextLeadId === 'string' && value.leadChange.nextLeadId, 'lead change nextLeadId is required');

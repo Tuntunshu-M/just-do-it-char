@@ -35,9 +35,9 @@ function stageSection(doc, steps = [], currentStepIndex = 0) {
     item.append(el(doc, 'h5', {}, step.title ?? step.name ?? `阶段 ${index + 1}`));
     appendFields(item, doc, [
       ['状态：', step.status ?? (index === currentStepIndex ? 'current' : 'pending')],
-      ['阶段目标：', step.goal], ['核心事件：', step.coreEvent ?? step.activity], ['主动活动：', step.activity],
+      ['阶段目标：', step.goal], ['角色主动活动：', step.activity],
       ['推进点：', step.advancePoint], ['活跃人物：', step.activeCharacterIds],
-      ['角色互动：', step.interaction], ['对 user 的策划：', step.userPlan],
+      ['角色互动：', step.interaction],
       ['拆分步骤：', step.splitSteps ?? step.actions ?? step.substeps],
     ]);
     for (const plan of step.characterPlans ?? step.characterActions ?? []) {
@@ -73,6 +73,48 @@ function clueSection(doc, clues = []) {
   return node;
 }
 
+const EDITABLE_FIELDS = ['title', 'category', 'premise', 'steps', 'foreshadowing', 'facts', 'revisions'];
+const PROTECTED_FIELDS = new Set(['id', 'status', 'currentStepIndex', 'pendingTurn', 'createdAt', 'updatedAt']);
+
+function scriptEditor(doc, script, services) {
+  const panel = el(doc, 'section', { class: 'stpd-script-editor' });
+  panel.append(el(doc, 'h4', {}, '编辑剧本'));
+  const input = (label, value, tag = 'input') => {
+    const node = el(doc, tag, { 'aria-label': label, ...(tag === 'textarea' ? { rows: '8' } : { type: 'text' }) });
+    node.value = value ?? '';
+    panel.append(el(doc, 'label', { class: 'stpd-field' }, label), node);
+    return node;
+  };
+  const title = input('标题', script.title);
+  const category = input('分类', script.category);
+  const premise = input('完整大纲', script.premise, 'textarea');
+  const steps = input('阶段 JSON', JSON.stringify(script.steps ?? [], null, 2), 'textarea');
+  const clues = input('伏笔 JSON', JSON.stringify(script.foreshadowing ?? [], null, 2), 'textarea');
+  const facts = input('事实 JSON', JSON.stringify(script.facts ?? [], null, 2), 'textarea');
+  const revisions = input('修订记录 JSON', JSON.stringify(script.revisions ?? [], null, 2), 'textarea');
+  const extras = Object.fromEntries(Object.entries(script).filter(([key]) => !EDITABLE_FIELDS.includes(key) && !PROTECTED_FIELDS.has(key)));
+  const extra = input('扩展内容 JSON', JSON.stringify(extras, null, 2), 'textarea');
+  const actions = el(doc, 'div', { class: 'stpd-row' });
+  const save = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '保存剧本');
+  const cancel = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '取消');
+  save.onclick = () => runAction(async () => {
+    const parsedExtra = JSON.parse(extra.value || '{}');
+    if (!parsedExtra || Array.isArray(parsedExtra) || typeof parsedExtra !== 'object') throw new Error('扩展内容必须是 JSON 对象');
+    for (const key of PROTECTED_FIELDS) delete parsedExtra[key];
+    await services.updateScript?.(script.id, {
+      ...parsedExtra,
+      title: title.value.trim(), category: category.value.trim(), premise: premise.value,
+      steps: JSON.parse(steps.value || '[]'), foreshadowing: JSON.parse(clues.value || '[]'),
+      facts: JSON.parse(facts.value || '[]'), revisions: JSON.parse(revisions.value || '[]'),
+    });
+    panel.remove?.();
+  }, services.notice);
+  cancel.onclick = () => panel.remove?.();
+  actions.append(save, cancel);
+  panel.append(actions);
+  return panel;
+}
+
 export function renderScriptDetail({ doc, script, services }) {
   const detail = el(doc, 'article', { class: 'stpd-script-detail' });
   if (!script) {
@@ -84,10 +126,10 @@ export function renderScriptDetail({ doc, script, services }) {
     section(doc, '完整大纲', script.premise),
     stageSection(doc, script.steps, script.currentStepIndex),
     clueSection(doc, script.foreshadowing),
-    section(doc, '关键冲突', script.conflict),
-    section(doc, '高潮', script.climax),
-    section(doc, '结局', script.ending),
   );
+  const edit = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '编辑');
+  edit.onclick = () => { if (!detail.children?.some((node) => node.className === 'stpd-script-editor')) detail.append(scriptEditor(doc, script, services)); };
+  detail.append(edit);
   if (script.revisions?.length) {
     const revisions = el(doc, 'section', { class: 'stpd-script-section stpd-script-revisions' });
     revisions.append(el(doc, 'h4', {}, '修改记录'));

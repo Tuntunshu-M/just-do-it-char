@@ -307,6 +307,9 @@ export function initializeExtension() {
         return result;
       },
       selectScript: async (scriptId) => { await repository.select(chatKey, state.characterFingerprint, scriptId); refresh(); },
+      deleteScripts: async (scriptIds) => { await repository.remove(chatKey, state.characterFingerprint, scriptIds); refresh(); },
+      clearScripts: async () => { await repository.clear(chatKey, state.characterFingerprint); refresh(); },
+      updateScript: async (scriptId, changes) => { await repository.update(chatKey, state.characterFingerprint, scriptId, changes); refresh(); },
       performScript: async (scriptId) => {
         await scriptRuntime.perform(chatKey, state.characterFingerprint, scriptId, {
           confirmConflict: (current, next) => hostAdapter.showConfirm(`“${current.title}”正在演出。开演“${next.title}”会停止当前剧本，但保留历史进度。是否继续？`),

@@ -64,8 +64,8 @@ test('settings navigation keeps all four tabs in one horizontal row', async () =
 
 test('console supports prompted manual events and persists editable settings', async () => {
   const text = await source();
-  for (const label of ['事件想法', '让 AI 扩展', '让 char 策划旅行', 'select.onchange', 'agency.onchange', 'weight.onchange']) assert.match(text, new RegExp(label));
-  assert.match(text, /onManualEvent\?\.\(idea\.value/);
+  for (const label of ['事件想法', '允许 AI 扩展', '让角色策划旅行', 'select.onchange', 'agency.onchange', 'weight.onchange']) assert.match(text, new RegExp(label));
+  assert.match(text, /onManualEvent\?\.\(text, shouldExpand/);
 });
 
 test('console exposes independent API connection fields', async () => {
@@ -89,6 +89,12 @@ test('console gates the explicit erotic high-risk mode with a safeword', async (
   assert.match(text, /cncEnabled/);
   assert.match(text, /safewords/);
   assert.match(text, /支持中文逗号、英文逗号或换行分隔/);
+});
+
+test('idle trigger controls are visibly unfinished and disabled', async () => {
+  const text = await uiSource('views/preferences.js');
+  assert.match(text, /启用空闲触发（还没做）/);
+  assert.equal((text.match(/disabled: true/g) ?? []).length >= 3, true);
 });
 
 test('console exposes selective snapshot migration', async () => {

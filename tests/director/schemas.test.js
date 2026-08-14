@@ -57,7 +57,7 @@ test('multi profile requires independently identified members and relations', ()
 function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
   return {
     event: {
-      title: 'Plan', category, premise: '完整开端', conflict: '主要矛盾', climax: '高潮事件', ending: '结局走向',
+      title: 'Plan', category, premise: '完整开端',
       steps: Array.from({ length: steps }, (_, index) => ({ id: `s${index + 1}`, title: `阶段 ${index + 1}`, goal: `goal ${index + 1}`, activity: '{{char}}主动推进当前目标', splitSteps: ['start', 'advance'] })),
     },
     feedback: { classification: 'neutral', confidence: 1, reason: 'ok' },
@@ -74,11 +74,16 @@ function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
   };
 }
 
-test('planned scripts require outline conflict climax and ending', () => {
-  for (const field of ['premise', 'conflict', 'climax', 'ending']) {
-    const result = plannedResult(); delete result.event[field];
-    assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), new RegExp(field));
+test('planned scripts require a complete outline but do not require removed panels', () => {
+  const result = plannedResult();
+  assert.doesNotThrow(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+  for (const field of ['conflict', 'climax', 'ending']) {
+    result.event[field] = 'legacy field';
+    assert.doesNotThrow(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+    delete result.event[field];
   }
+  delete result.event.premise;
+  assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /premise/);
 });
 
 test('event schema enforces five to seven unique stages', () => {
@@ -92,7 +97,7 @@ test('event schema enforces cast-specific foreshadowing counts and selected cate
   assert.doesNotThrow(() => validateDirectorResult(plannedResult(), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
   assert.throws(() => validateDirectorResult(plannedResult({ clues: 2 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /3 to 5/);
   const multi = plannedResult({ clues: 3 });
-  multi.event.steps = multi.event.steps.map((step) => ({ ...step, activeCharacterIds: ['a', 'b'], interaction: 'They cooperate.', userPlan: 'Invite user.', characterActions: [{ characterId: 'a', goal: 'A goal', action: 'A acts' }, { characterId: 'b', goal: 'B goal', action: 'B acts' }] }));
+  multi.event.steps = multi.event.steps.map((step) => ({ ...step, activeCharacterIds: ['a', 'b'], interaction: 'They cooperate.', characterActions: [{ characterId: 'a', goal: 'A goal', action: 'A acts' }, { characterId: 'b', goal: 'B goal', action: 'B acts' }] }));
   assert.throws(() => validateDirectorResult(multi, { type: 'plan-event', castMode: 'multi', castCharacterIds: ['a', 'b'], mainCategory: 'daily' }), /4 to 6/);
   assert.throws(() => validateDirectorResult(plannedResult({ category: 'crisis' }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /selected main category/);
 });
@@ -103,7 +108,6 @@ test('multi-cast stages accept one or more known active characters without an up
     ...step,
     activeCharacterIds: index === 0 ? ['a'] : ['a', 'b', 'c', 'd', 'e'],
     interaction: 'They cooperate and challenge each other.',
-    userPlan: 'Invite user to participate.',
     characterActions: (index === 0 ? ['a'] : ['a', 'b', 'c', 'd', 'e']).map((characterId) => ({ characterId, goal: `${characterId} goal`, action: `${characterId} acts` })),
   }));
   const intent = { type: 'plan-event', castMode: 'multi', castCharacterIds: ['a', 'b', 'c', 'd', 'e'], mainCategory: 'daily' };
@@ -144,7 +148,7 @@ test('foreshadowing requires a lifecycle status and an existing connected stage 
   assert.throws(() => validateDirectorResult(result, intent), /connected stage title/i);
 });
 
-test('planned stages require split actions and multi-character goals, actions, and user plans', () => {
+test('planned stages require split actions and multi-character goals and actions', () => {
   const single = plannedResult();
   single.event.steps = single.event.steps.map((step) => ({ ...step, splitSteps: ['主动发起', '推进结果'] }));
   assert.doesNotThrow(() => validateDirectorResult(single, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
@@ -154,13 +158,26 @@ test('planned stages require split actions and multi-character goals, actions, a
   const multi = plannedResult({ clues: 4 });
   multi.event.steps = multi.event.steps.map((step) => ({
     ...step,
-    splitSteps: ['发起', '回应'], activeCharacterIds: ['a', 'b'], interaction: '两人交锋', userPlan: '邀请 user 到场',
+    splitSteps: ['发起', '回应'], activeCharacterIds: ['a', 'b'], interaction: '两人交锋',
     characterActions: [{ characterId: 'a', goal: '查明真相', action: '主动询问' }, { characterId: 'b', goal: '保护秘密', action: '安排会面' }],
   }));
   const intent = { type: 'plan-event', castMode: 'multi', castCharacterIds: ['a', 'b'], mainCategory: 'daily' };
   assert.doesNotThrow(() => validateDirectorResult(multi, intent));
-  delete multi.event.steps[0].userPlan;
-  assert.throws(() => validateDirectorResult(multi, intent), /user plan/i);
+  assert.doesNotThrow(() => validateDirectorResult(multi, intent));
+});
+
+test('planned outline content rejects preplanned user action or result', () => {
+  const result = plannedResult();
+  result.event.premise = '角色发出邀请，等待 {{user}} 响应，并给用户留下选择空间';
+  assert.doesNotThrow(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+  result.event.premise = '{{user}}决定接受邀请';
+  assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /user agency/i);
+  result.event.premise = '角色发出邀请，等待 user 响应';
+  result.event.steps[0].activity = 'user 已经答应并前往现场';
+  assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /user agency/i);
+  result.event.steps[0].activity = '角色发出邀请并等待响应';
+  result.foreshadowing[0].surface = '{{user}}受伤并发现线索';
+  assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /user agency/i);
 });
 
 test('multi profile requires the complete editable member fields', () => {

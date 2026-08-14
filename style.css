@@ -223,6 +223,7 @@
   scrollbar-gutter: stable;
 }
 #st-proactive-director .stpd-script-list { display: grid; align-content: start; gap: 6px; }
+#st-proactive-director .stpd-script-list-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; }
 #st-proactive-director .stpd-script-list-item {
   display: grid;
   gap: 3px;
