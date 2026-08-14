@@ -124,6 +124,26 @@ test('multi-cast stages accept one or more known active characters without an up
   assert.throws(() => validateDirectorResult(unknownCharacter, intent), /unknown/);
 });
 
+test('multi-cast character interaction never contains user references', () => {
+  const result = plannedResult({ clues: 4 });
+  result.event.steps = result.event.steps.map((step) => ({
+    ...step,
+    activeCharacterIds: ['a', 'b'],
+    interaction: 'A 和 B 围绕线索互相试探',
+    characterActions: [{ characterId: 'a', goal: '确认线索', action: '向 B 追问' }, { characterId: 'b', goal: '隐藏秘密', action: '转移话题' }],
+  }));
+  const intent = { type: 'plan-event', castMode: 'multi', castCharacterIds: ['a', 'b'], mainCategory: 'daily' };
+  assert.doesNotThrow(() => validateDirectorResult(result, intent));
+  for (const field of ['interaction', 'activity', 'goal', 'action']) {
+    const contaminated = structuredClone(result);
+    if (field === 'interaction') contaminated.event.steps[0].interaction = 'A 与 user 互动';
+    else if (field === 'activity') contaminated.event.steps[0].activity = '角色等待 user 回应';
+    else if (field === 'goal') contaminated.event.steps[0].characterActions[0].goal = '让 user 做出选择';
+    else contaminated.event.steps[0].characterActions[0].action = '向 user 发问';
+    assert.throws(() => validateDirectorResult(contaminated, intent), /multi.*user|user.*(?:multi|agency)/i, field);
+  }
+});
+
 test('planned stages require a subtitle and concrete character behavior', () => {
   const result = plannedResult();
   assert.doesNotThrow(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
