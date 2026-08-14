@@ -27,6 +27,20 @@ function assertUserAgencySafe(value, path = 'event') {
   }
 }
 
+function assertMultiCharacterInteractionSafe(value, path) {
+  if (typeof value === 'string') {
+    requireType(!new RegExp(USER_REFERENCE, 'i').test(value), `multi-character interaction must not reference user in ${path}`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertMultiCharacterInteractionSafe(item, `${path}[${index}]`));
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) assertMultiCharacterInteractionSafe(item, `${path}.${key}`);
+  }
+}
+
 function normalizeDirectorResult(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Array.isArray(value.actions)) return value;
   return {
@@ -70,6 +84,9 @@ export function validateDirectorResult(value, intent = {}) {
           requireType(step.activeCharacterIds.every((id) => castIds.has(id)), 'multi step character id is unknown');
           requireType(typeof step.interaction === 'string' && step.interaction.trim(), 'multi step interaction is required');
           requireType(Array.isArray(step.characterActions), 'multi step characterActions are required');
+          assertMultiCharacterInteractionSafe(step.activity, 'event step activity');
+          assertMultiCharacterInteractionSafe(step.interaction, 'event step interaction');
+          assertMultiCharacterInteractionSafe(step.characterActions, 'event step characterActions');
           const actionIds = new Set(step.characterActions.map((item) => item?.characterId));
           requireType(step.activeCharacterIds.every((id) => actionIds.has(id)), 'multi step character action is required for every active character');
           for (const action of step.characterActions) {

@@ -117,6 +117,8 @@ test('event intent composes multi-card stages, category tones, and anti-conspira
   assert.match(system.content, /角色主动活动/s);
   assert.match(system.content, /已回收.*未注入.*使用中.*待使用/s);
   assert.match(system.content, /connectedStepTitle/);
+  assert.match(system.content, /多人.*interaction.*不得.*user/s);
+  assert.match(system.content, /角色之间.*互动.*user/s);
 });
 
 test('event prompt uses only current sources and contains no crime-story example anchors', () => {
