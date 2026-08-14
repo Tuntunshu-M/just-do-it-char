@@ -44,7 +44,7 @@ test('css template exposes editable variables and common scoped components witho
 
 test('css template includes responsive script library and cast controls', () => {
  const css=createCssTemplate();
- for(const token of ['.stpd-script-layout','.stpd-script-list','.stpd-script-detail','.stpd-script-toolbar','.stpd-script-time','.stpd-script-stage-summary','.stpd-script-field','.stpd-script-stage','.stpd-script-clue','.stpd-revision-summary','.stpd-cast-mode','.stpd-cast-members','.stpd-cast-member','@media (max-width: 520px)']){
+ for(const token of ['.stpd-script-layout','.stpd-script-list','.stpd-script-detail','.stpd-script-detail-header','.stpd-script-editor','.stpd-script-toolbar','.stpd-script-time','.stpd-script-stage-summary','.stpd-script-field','.stpd-script-stage','.stpd-script-clue','.stpd-revision-summary','.stpd-cast-mode','.stpd-cast-members','.stpd-cast-member','@media (max-width: 520px)']){
   assert.match(css,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
  }
  assert.match(css,/\.stpd-script-layout\s*\{[^}]*grid-template-columns:\s*minmax\(150px,\s*210px\)\s+minmax\(0,\s*1fr\)/s);

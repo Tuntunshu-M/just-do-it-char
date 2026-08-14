@@ -29,7 +29,5 @@ export function renderPreferencesView({ body, settings, state, services, saveSet
   const idle = el(doc, 'input', { type: 'checkbox', checked: settings.trigger.idleEnabled, disabled: true });
   const idleMinutes = el(doc, 'input', { type: 'number', min: '1', max: '1440', value: String(settings.trigger.idleMinutes ?? 30), disabled: true });
   const windows = el(doc, 'input', { type: 'text', value: (settings.trigger.allowedWindows ?? []).map((item) => item.join('-')).join(', '), placeholder: '09:00-23:00', disabled: true });
-  body.append(field(doc, '启用空闲触发', idle), field(doc, '空闲分钟', idleMinutes), field(doc, '允许时段', windows));
-  const idleLabel = body.children.at(-3)?.children?.[0];
-  if (idleLabel) idleLabel.textContent = '启用空闲触发（还没做）';
+  body.append(field(doc, '启用空闲触发（还没做）', idle), field(doc, '空闲分钟', idleMinutes), field(doc, '允许时段', windows));
 }

@@ -17,6 +17,15 @@ test('script page renders history toolbar and complete selected detail', () => {
   assert.ok(flatten(body).some((node) => node.className === 'stpd-script-layout'));
 });
 
+test('script detail keeps edit action in the top header before outline content', () => {
+  const doc = documentFixture(); const body = doc.createElement('section');
+  renderScriptsView({ body, state: { selectedScriptId: 's', scripts: [{ id: 's', title: 'Top', status: 'draft', premise: 'Outline', steps: [], foreshadowing: [] }] }, services: {} });
+  const detail = flatten(body).find((node) => node.className === 'stpd-script-detail');
+  assert.equal(detail.children[0]?.className, 'stpd-script-detail-header');
+  assert.ok(flatten(detail.children[0]).some((node) => node.tagName === 'button'));
+  assert.equal(detail.children[1]?.className, 'stpd-script-section');
+});
+
 test('script list shows timestamps and the current stage summary', () => {
   const doc = documentFixture(); const body = doc.createElement('section');
   renderScriptsView({ body, state: {

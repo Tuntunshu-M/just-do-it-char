@@ -74,6 +74,10 @@ textarea {
 .stpd-script-list-item { width: 100%; min-width: 0; border-radius: 4px; }
 .stpd-script-time { color: var(--stpd-muted); font-size: 12px; }
 .stpd-script-stage-summary { color: var(--stpd-text); font-size: 12px; overflow-wrap: anywhere; }
+.stpd-script-detail-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--stpd-border); }
+.stpd-script-editor { display: grid; gap: 8px; min-width: 0; padding: 10px; background: var(--stpd-panel); border: 1px solid var(--stpd-border); border-radius: 4px; }
+.stpd-script-editor input,
+.stpd-script-editor textarea { width: 100%; min-width: 0; resize: vertical; }
 .stpd-script-detail,
 .stpd-script-section,
 .stpd-script-items { min-width: 0; overflow-wrap: anywhere; }
