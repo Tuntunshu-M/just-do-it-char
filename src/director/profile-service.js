@@ -1,5 +1,6 @@
 function profileSources(card = {}, entries = [], cast = null) {
   return {
+    sourceAuthority: ['worldInfo', 'card', 'context'],
     card: {
       name: card.name ?? '',
       description: card.description ?? '',
@@ -30,7 +31,33 @@ function fingerprint(value) {
   return (hash >>> 0).toString(36);
 }
 
-export function createProfileService({ client }) {
+function hasUsableMultiProfile(state, cast) {
+  const members = cast?.multiMembers?.length ? cast.multiMembers : cast?.members;
+  return Boolean(cast?.multiProfileInitialized
+    && Array.isArray(members)
+    && members.length > 0
+    && String(state?.personalityProfile?.content ?? '').trim());
+}
+
+function mergeCandidateMembers(existing = [], extracted = []) {
+  const merged = existing.map((member) => ({ ...member }));
+  extracted.forEach((member) => {
+    const name = String(member?.name ?? '').trim().toLocaleLowerCase();
+    const matchIndex = merged.findIndex((candidate) => (
+      (member?.id && candidate?.id === member.id)
+      || (name && String(candidate?.name ?? '').trim().toLocaleLowerCase() === name)
+    ));
+    if (matchIndex < 0) {
+      merged.push(member);
+      return;
+    }
+    const previous = merged[matchIndex];
+    merged[matchIndex] = { ...previous, ...member, id: previous.id ?? member.id };
+  });
+  return merged;
+}
+
+export function createProfileService({ client, getCurrentChatKey = null, onStatus = null }) {
   const inFlight = new Map();
   async function generate({ state, card, cast, entries, connection }) {
     const optionsChatKey = state.chatKey;
@@ -39,28 +66,36 @@ export function createProfileService({ client }) {
     const previous = { ...state.personalityProfile };
     if (connection?.mode !== 'independent' || !connection.endpoint || !connection.model) {
       state.personalityProfile = { ...state.personalityProfile, status: 'failed', error: '还没连接副 API' };
+      await onStatus?.(state);
       return state.personalityProfile;
     }
     state.personalityProfile = { ...state.personalityProfile, status: 'generating', error: '', activeFingerprint: sourceFingerprint };
+    await onStatus?.(state);
     try {
       const castMode = cast?.mode ?? 'single';
       const result = await client.requestDirector({ context: sources, intent: { type: 'profile-character', castMode } }, connection);
-      if (state.chatKey !== optionsChatKey || state.personalityProfile.activeFingerprint !== sourceFingerprint) return state.personalityProfile;
+      if ((getCurrentChatKey && getCurrentChatKey() !== optionsChatKey) || state.chatKey !== optionsChatKey || state.personalityProfile.activeFingerprint !== sourceFingerprint) return state.personalityProfile;
       state.personalityProfile = {
         status: 'ready', fingerprint: sourceFingerprint, activeFingerprint: sourceFingerprint, ignoredFingerprint: '', content: result.content,
         citations: result.citations, generatedAt: new Date().toISOString(), error: '',
       };
-      if (castMode === 'multi' && Array.isArray(result.members)) {
-        state.cast.multiMembers = result.members;
-        state.cast.members = result.members;
+      if (Array.isArray(result.members)) {
+        state.cast.multiMembers = castMode === 'single'
+          ? mergeCandidateMembers(state.cast.multiMembers, result.members)
+          : result.members;
         state.cast.relations = result.relations ?? [];
-        state.cast.multiProfileInitialized = true;
+        state.cast.candidateProfileInitialized = state.cast.multiMembers.length > 0;
+        if (castMode === 'multi') {
+          state.cast.members = result.members;
+          state.cast.multiProfileInitialized = result.members.length > 0 && Boolean(String(result.content ?? '').trim());
+        }
       }
     } catch (error) {
       state.personalityProfile = previous.content
         ? { ...previous, status: 'stale-pending', activeFingerprint: sourceFingerprint, error: error.message }
         : { ...state.personalityProfile, status: 'failed', error: error.message };
     }
+    await onStatus?.(state);
     return state.personalityProfile;
   }
 
@@ -75,6 +110,11 @@ export function createProfileService({ client }) {
         return profile;
       }
       if (profile?.status === 'stale-pending' || profile?.status === 'ready-ignored') return profile;
+      if (options.cast?.mode === 'single' && !options.cast.candidateProfileInitialized) {
+        const key = options.state.chatKey ?? 'profile';
+        if (!inFlight.has(key)) inFlight.set(key, generate(options).finally(() => inFlight.delete(key)));
+        return inFlight.get(key);
+      }
       if (profile?.content) return profile;
       const key = options.state.chatKey ?? 'profile';
       if (!inFlight.has(key)) inFlight.set(key, generate(options).finally(() => inFlight.delete(key)));
@@ -88,8 +128,10 @@ export function createProfileService({ client }) {
     async switchModeAndEnsureProfile(options) {
       const cast = options.state.cast ?? options.cast;
       if (cast?.mode !== 'multi') return options.state.personalityProfile;
-      if (cast.multiProfileInitialized) return options.state.personalityProfile;
-      return generate({ ...options, cast });
+      if (hasUsableMultiProfile(options.state, cast)) return options.state.personalityProfile;
+      const key = options.state.chatKey ?? 'profile';
+      if (!inFlight.has(key)) inFlight.set(key, generate({ ...options, cast }).finally(() => inFlight.delete(key)));
+      return inFlight.get(key);
     },
     ignoreProfile({ state, fingerprint: ignoredFingerprint }) {
       const profile = state.personalityProfile ?? {};

@@ -47,3 +47,31 @@ test('pause resume redirect and stop preserve the script record', async () => {
   assert.equal(state.activeScriptId, null);
   assert.equal(state.activeEvent, null);
 });
+
+test('runtime controls reject a non-active script without changing either script', async () => {
+  const { state, repository, runtime } = fixture();
+  const active = await repository.createDraft('c', 'f', { title: 'Active', steps: [{ id: 'a' }] });
+  await runtime.perform('c', 'f', active.id);
+  const inactive = await repository.createDraft('c', 'f', { title: 'Inactive', steps: [{ id: 'b' }] });
+  const before = structuredClone(state);
+
+  for (const operation of [
+    () => runtime.pause('c', 'f', inactive.id),
+    () => runtime.resume('c', 'f', inactive.id),
+    () => runtime.changeDirection('c', 'f', inactive.id, 'wrong target'),
+    () => runtime.stop('c', 'f', inactive.id),
+  ]) {
+    await assert.rejects(operation(), /not active/i);
+    assert.deepEqual(state, before);
+  }
+});
+
+test('perform rejects scripts that are already running paused or completed', async () => {
+  for (const status of ['running', 'paused', 'completed']) {
+    const { state, repository, runtime } = fixture();
+    const script = await repository.createDraft('c', 'f', { title: status, steps: [{ id: 'a' }] });
+    state.scripts[0].status = status;
+    if (status !== 'completed') state.activeScriptId = script.id;
+    await assert.rejects(runtime.perform('c', 'f', script.id), /cannot be performed/i, status);
+  }
+});

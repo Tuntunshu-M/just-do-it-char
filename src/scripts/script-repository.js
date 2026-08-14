@@ -6,8 +6,21 @@ function createId() {
   return `script-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function legacyScriptStatus(status) {
+  if (['awaiting-user', 'active', 'running'].includes(status)) return 'running';
+  if (status === 'paused') return 'paused';
+  if (['completed', 'stopped'].includes(status)) return status;
+  return 'stopped';
+}
+
 export function normalizeScript(plan = {}, options = {}) {
   const now = options.now ?? new Date().toISOString();
+  const status = options.status ?? plan.status ?? 'draft';
+  const steps = clone(plan.steps ?? []).map((step, index) => ({
+    ...step,
+    ...(status === 'draft' ? { status: 'pending' } : {}),
+    order: step.order ?? index + 1,
+  }));
   return {
     id: options.id ?? plan.id ?? createId(),
     title: plan.title ?? '未命名剧本',
@@ -16,11 +29,11 @@ export function normalizeScript(plan = {}, options = {}) {
     conflict: plan.conflict ?? '',
     climax: plan.climax ?? '',
     ending: plan.ending ?? '',
-    steps: clone(plan.steps ?? []),
+    steps,
     foreshadowing: clone(plan.foreshadowing ?? []),
     facts: clone(plan.facts ?? []),
     revisions: clone(plan.revisions ?? []),
-    status: options.status ?? plan.status ?? 'draft',
+    status,
     currentStepIndex: plan.currentStepIndex ?? 0,
     pendingTurn: clone(plan.pendingTurn ?? null),
     createdAt: plan.createdAt ?? now,
@@ -71,12 +84,14 @@ export function createScriptRepository(store) {
         state.scripts ??= [];
         if (!state.activeEvent) return null;
         const existing = find(state, state.activeEvent.id);
+        const status = legacyScriptStatus(state.activeEvent.status);
         const script = existing ?? normalizeScript(state.activeEvent, {
-          status: state.activeEvent.status === 'awaiting-user' ? 'running' : state.activeEvent.status,
+          status,
         });
         if (!existing) state.scripts.push(script);
         state.selectedScriptId ??= script.id;
-        state.activeScriptId ??= script.id;
+        if (['running', 'paused'].includes(script.status)) state.activeScriptId ??= script.id;
+        else if (state.activeScriptId === script.id) state.activeScriptId = null;
         state.activeEvent = find(state, state.activeScriptId);
         return clone(script);
       });

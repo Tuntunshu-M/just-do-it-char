@@ -9,7 +9,7 @@ function castRules(intent, context) {
   const multi = intent.castMode === 'multi' || context.cast?.mode === 'multi';
   if (!multi) return `你以【编剧兼角色策划者】身份工作。保持单名角色的独立人格、主动目标、关系、说话风格和知识边界。`;
   return `你以【编剧兼群像角色策划者】身份工作。保留全部 cast.members，不把总人数限制为 2-4 人，也不把多人压缩成混合人格。
-每名人物都有独立目标、关系、秘密或执念及知识边界。每个阶段只选择 2-4 名相关活跃人物，至少两人发生合作、冲突、竞争、试探、隐瞒或联盟变化；跨阶段轮换相关人物，不能让其他人退化为 NPC。
+每名人物都有独立目标、关系、秘密或执念及知识边界。每个阶段按剧情需要选择至少 1 名相关活跃人物，不设人数上限；有人物同场时安排合作、冲突、竞争、试探、隐瞒或联盟变化，并跨阶段合理轮换人物，不能让其他人退化为 NPC。
 主推手可切换，但必须给出动机、地点和知识状态，且不能继承他人的私有知识。`;
 }
 
@@ -27,15 +27,20 @@ function profileContract(intent, context) {
   "citations": [{ "source": "card:description 或 worldInfo:书名/条目", "excerpt": "支持侧写的原文短摘录" }]
 }`
     : `{
-  "content": "压缩人物侧写",
+  "content": "当前所选人物的压缩侧写；尚未选择时写候选人物概览",
+  "members": [
+    { "id": "稳定人物 id", "name": "姓名", "aliases": [], "personality": "性格", "background": "背景", "relationship": "与 user 的关系", "attitude": "对 user 的态度", "goal": "必须通过 user 才能完成的目标/秘密/执念", "speechStyle": "说话风格", "activeApproach": "主动接近与推动方式", "knowledgeBoundary": "明确知道、推断和明确不知道的边界", "evidence": ["资料短摘录"] }
+  ],
+  "relations": [],
   "citations": [
-    { "source": "card:personality", "excerpt": "支持侧写的原文短摘录" }
+    { "source": "worldInfo:书名/条目 或 card:personality", "excerpt": "支持侧写的原文短摘录" }
   ]
 }`;
   return `${castRules(intent, context)}
 请压缩角色卡与用户选中的世界书资料。侧写须覆盖姓名、性格、背景、与 user 的关系、对 user 的态度、当前目标/秘密/执念、说话风格、主动推动方式和知识边界。
+资料冲突时严格遵循“世界书优先于角色卡，角色卡优先于聊天上下文”；低优先级资料只能补充世界书没有说明的字段，不能覆盖世界书设定。
 必须明确区分：明确知道、亲历/当前可感知、合理推断、明确不知道。不得把未来事件、未公开伏笔或世界书幕后秘密写成角色知识。
-${multi ? '从角色卡和用户勾选的世界书条目中提取全部有明确资料证据的候选人物，不限制总人数，不虚构只有称谓但没有人物证据的候选。每人保持独立身份、目标、证据和认知边界，并整理角色关系网。' : ''}
+从角色卡和用户勾选的世界书条目中提取全部有明确资料证据的候选人物，不限制总人数，不虚构只有称谓但没有人物证据的候选。每人保持独立身份、目标、证据和认知边界。${multi ? '同时整理角色关系网。' : '即使当前是单人模式，也必须返回全部候选人物供 user 选择，不能替 user 捏造或擅自选定一个人物。'}
 只输出：
 ${output}`;
 }
@@ -57,13 +62,15 @@ function eventContract(intent, context) {
   const multi = intent.castMode === 'multi' || context.cast?.mode === 'multi';
   const clueCount = multi ? '4-6' : '3-5';
   const stepExample = multi
-    ? `{ "id": "step-1", "goal": "阶段目标", "activity": "主动活动", "advancePoint": "结束推进点", "activeCharacterIds": ["character-1", "character-2"], "characterActions": [{ "characterId": "character-1", "goal": "个人目标", "action": "主动行动" }, { "characterId": "character-2", "goal": "个人目标", "action": "主动行动" }], "interaction": "至少两名活跃人物之间的合作、冲突或联盟变化", "userPlan": "对 user 的集体或单独策划" }`
-    : `{ "id": "step-1", "goal": "阶段目标", "activity": "主动活动", "advancePoint": "结束推进点" }`;
+    ? `{ "id": "step-1", "title": "在警局下马威中立足", "goal": "阶段目标", "activity": "活跃人物主动推进阶段的总体行为", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"], "activeCharacterIds": ["character-1"], "characterActions": [{ "characterId": "character-1", "goal": "个人目标", "action": "人物姓名展示自己的能力" }], "interaction": "活跃人物之间的互动；只有一人时写其与现场的互动", "userPlan": "为 user 留出的响应机会，不预设 user 的行动" }`
+    : `{ "id": "step-1", "title": "保护 user", "goal": "阶段目标", "activity": "{{char}}根据 user 已经表达的处境采取具体行动", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"] }`;
   return `${castRules(intent, context)}
 ${categoryRules(intent)}
 题材 genre 是独立世界层，不参与日常/危机/色情权重。规则怪谈和无限流必须维护规则账本，不得静默改写公开规则。
-输出完整起承转合。event.steps 必须包含 5-7 个不同阶段和唯一 id；每阶段包含角色主动目标、主动活动、结束推进点${multi ? '、activeCharacterIds、每名活跃人物的目标与行动、人物间互动和对 user 的策划' : ''}。
-foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现、埋设阶段、回收阶段、回收方式、影响及可判断的成熟/揭示条件。规划时保存全部阶段和伏笔，但 injection 只写当前第一阶段所需的紧凑幕后指令，不写完整剧本。
+必须完整写出非空的剧情大纲、关键冲突、高潮和结局，不得省略、留空、写“待定”或用占位语敷衍。
+输出完整起承转合。event.steps 必须包含 5-7 个不同阶段和唯一 id；每阶段必须使用“小标题 + char 的具体行为”格式，title 是行动导向的小标题，activity 是角色实际要做的具体行为；每阶段必须包含非空 splitSteps 数组，列出至少 2 个可执行的拆分步骤；每阶段包含角色主动目标、主动活动、结束推进点${multi ? '、至少 1 名 activeCharacterIds、每名活跃人物的目标与用具体姓名描述的行动、人物间互动和对 user 的策划' : ''}。
+剧本不得预设 user 尚未在 userinput/latestUserMessage 中表达的行动、决定、受伤、摔倒或结果。只能响应 user 已明确描述或正在发生的状态，并始终给 user 留出选择空间。
+foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现、埋设阶段、回收阶段、回收方式、影响及可判断的成熟/揭示条件。每条还必须包含 status（只能是“已回收”“未注入”“使用中”“待使用”）和 connectedStepTitle（必须逐字等于 event.steps 中一个真实 title），对应显示格式为“[状态]伏笔内容[连接阶段标题]”。规划时保存全部阶段和伏笔，但 injection 只写当前第一阶段所需的紧凑幕后指令，不写完整剧本。
 创建事件时所有字段都必须保留，结构如下（数组省略的同类项仍必须达到规定数量）：
 {
   "event": {
@@ -82,8 +89,8 @@ foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现�
   "branches": [],
   "risks": [],
   "foreshadowing": [
-    { "id": "clue-1", "source": "来源", "surface": "表面呈现", "plantStepId": "step-1", "revealStepId": "step-4", "recovery": "回收方式与影响", "conditionFactId": "fact-step-1", "maturity": 0, "threshold": 1 },
-    { "id": "clue-2", "source": "来源", "surface": "表面呈现", "plantStepId": "step-2", "revealStepId": "step-5", "recovery": "回收方式与影响", "conditionFactId": "fact-step-2", "maturity": 0, "threshold": 1 }
+    { "id": "clue-1", "status": "待使用", "connectedStepTitle": "在警局下马威中立足", "source": "来源", "surface": "表面呈现", "plantStepId": "step-1", "revealStepId": "step-4", "recovery": "回收方式与影响", "conditionFactId": "fact-step-1", "maturity": 0, "threshold": 1 },
+    { "id": "clue-2", "status": "未注入", "connectedStepTitle": "保护 user", "source": "来源", "surface": "表面呈现", "plantStepId": "step-2", "revealStepId": "step-5", "recovery": "回收方式与影响", "conditionFactId": "fact-step-2", "maturity": 0, "threshold": 1 }
   ],
   "ruleLedgerUpdate": {},
   "injection": "只供当前第一阶段使用的紧凑指令"

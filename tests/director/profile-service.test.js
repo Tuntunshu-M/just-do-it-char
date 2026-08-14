@@ -18,8 +18,106 @@ test('profile service sends card description and selected world entries to AI', 
   });
   assert.match(JSON.stringify(request.context), /gentle/);
   assert.match(JSON.stringify(request.context), /secret/);
+  assert.deepEqual(request.context.sourceAuthority, ['worldInfo', 'card', 'context']);
   assert.deepEqual(request.context.cast.members.map((member) => member.id), ['a', 'b']);
   assert.equal(state.personalityProfile.content, 'A concise profile');
+});
+
+test('single profile extraction keeps every evidenced candidate available for user selection', async () => {
+  const service = createProfileService({ client: { requestDirector: async () => ({
+    content: '候选人物侧写',
+    members: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }],
+    relations: [],
+    citations: [{ source: 'worldInfo:人物', excerpt: 'A、B、C' }],
+  }) } });
+  const state = {
+    chatKey: 'chat',
+    cast: { mode: 'single', members: [], multiMembers: [], singleSelection: null },
+    personalityProfile: { status: 'empty', content: '' },
+  };
+
+  await service.refreshProfile({
+    state,
+    card: { name: '多人卡' },
+    cast: state.cast,
+    entries: [{ name: '人物', content: 'A、B、C' }],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  });
+
+  assert.deepEqual(state.cast.multiMembers.map((member) => member.name), ['A', 'B', 'C']);
+  assert.deepEqual(state.cast.members, []);
+  assert.equal(state.cast.singleSelection, null);
+  assert.equal(state.cast.candidateProfileInitialized, true);
+});
+
+test('single profile refresh preserves existing candidates omitted by a partial extraction', async () => {
+  const service = createProfileService({ client: { requestDirector: async () => ({
+    content: 'refreshed candidate profile',
+    members: [
+      { id: 'a', name: 'A', personality: 'updated' },
+      { id: 'c-new', name: 'C', personality: 'discovered again' },
+    ],
+    relations: [],
+    citations: [],
+  }) } });
+  const state = {
+    chatKey: 'chat',
+    cast: {
+      mode: 'single',
+      members: [],
+      multiMembers: [
+        { id: 'a', name: 'A', personality: 'old' },
+        { id: 'b', name: 'B', personality: 'keep me' },
+        { id: 'c', name: 'C', personality: 'old C' },
+      ],
+      singleSelection: { id: 'a', name: 'A' },
+      candidateProfileInitialized: true,
+    },
+    personalityProfile: { status: 'ready', content: 'old profile' },
+  };
+
+  await service.refreshProfile({
+    state,
+    card: { name: 'Group card' },
+    cast: state.cast,
+    entries: [],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  });
+
+  assert.deepEqual(state.cast.multiMembers.map((member) => member.name), ['A', 'B', 'C']);
+  assert.equal(state.cast.multiMembers[0].personality, 'updated');
+  assert.equal(state.cast.multiMembers[1].personality, 'keep me');
+  assert.equal(state.cast.multiMembers[2].personality, 'discovered again');
+  assert.equal(state.cast.multiMembers[2].id, 'c');
+  assert.equal(state.cast.singleSelection.id, 'a');
+});
+
+test('single mode refreshes a legacy ready profile once when candidates were never extracted', async () => {
+  let calls = 0;
+  const service = createProfileService({ client: { requestDirector: async () => {
+    calls += 1;
+    return { content: 'candidate profile', citations: [], members: [{ id: 'a', name: 'A' }] };
+  } } });
+  const state = {
+    chatKey: 'chat',
+    cast: { mode: 'single', members: [], multiMembers: [], singleSelection: null },
+    personalityProfile: { status: 'ready', content: 'legacy profile', fingerprint: '' },
+  };
+  const options = {
+    state,
+    card: { name: 'Group card' },
+    cast: state.cast,
+    entries: [],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  };
+
+  await service.ensureProfile(options);
+  await service.ensureProfile(options);
+
+  assert.equal(calls, 1);
+  assert.equal(state.cast.candidateProfileInitialized, true);
+  assert.deepEqual(state.cast.multiMembers.map((member) => member.name), ['A']);
+  assert.equal(state.cast.singleSelection, null);
 });
 
 test('changed sources mark a cached profile stale without calling AI', async () => {
@@ -71,4 +169,106 @@ test('first multi switch extracts members and relations once from selected sourc
   assert.equal(calls, 1);
   assert.deepEqual(state.cast.multiMembers.map((member) => member.name), ['A', 'B', 'C', 'D']);
   assert.equal(state.cast.relations[0].type, '竞争');
+});
+
+test('multi initialization retries an invalid legacy state with no members or profile', async () => {
+  let calls = 0;
+  const service = createProfileService({ client: { requestDirector: async () => {
+    calls += 1;
+    return { content: 'group profile', members: [{ id: 'a', name: 'A' }], relations: [], citations: [] };
+  } } });
+  const state = {
+    chatKey: 'chat',
+    cast: { mode: 'multi', members: [], multiMembers: [], multiProfileInitialized: true },
+    personalityProfile: { status: 'empty', content: '' },
+  };
+
+  await service.switchModeAndEnsureProfile({
+    state,
+    card: { name: 'A' },
+    cast: state.cast,
+    entries: [{ name: 'B', content: 'B' }],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(state.cast.multiProfileInitialized, true);
+  assert.deepEqual(state.cast.multiMembers.map((member) => member.name), ['A']);
+  assert.equal(state.personalityProfile.content, 'group profile');
+});
+
+test('empty multi extraction does not mark initialization complete', async () => {
+  const service = createProfileService({ client: { requestDirector: async () => ({ content: '', members: [], relations: [], citations: [] }) } });
+  const state = {
+    chatKey: 'chat',
+    cast: { mode: 'multi', members: [], multiMembers: [], multiProfileInitialized: false },
+    personalityProfile: { status: 'empty', content: '' },
+  };
+
+  await service.switchModeAndEnsureProfile({
+    state,
+    card: { name: 'A' },
+    cast: state.cast,
+    entries: [],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  });
+
+  assert.equal(state.cast.multiProfileInitialized, false);
+  assert.equal(state.cast.multiMembers.length, 0);
+});
+
+test('concurrent first multi switches share one request', async () => {
+  let calls = 0; let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const service = createProfileService({ client: { requestDirector: async () => { calls += 1; await pending; return { content: '群像', members: [] }; } } });
+  const state = { chatKey: 'chat', cast: { mode: 'multi', members: [], multiMembers: [] }, personalityProfile: { status: 'empty', content: '' } };
+  const options = { state, card: { name: 'A' }, cast: state.cast, entries: [], connection: { mode: 'independent', endpoint: 'x', model: 'm' } };
+  const first = service.switchModeAndEnsureProfile(options);
+  const second = service.switchModeAndEnsureProfile(options);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 1);
+  release();
+  await Promise.all([first, second]);
+});
+
+test('profile generation publishes generating state before waiting for the secondary API', async () => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const published = [];
+  const service = createProfileService({
+    client: { requestDirector: async () => { await pending; return { content: 'ready', citations: [] }; } },
+    onStatus: async (state) => { published.push({ ...state.personalityProfile }); },
+  });
+  const state = { chatKey: 'chat', cast: { mode: 'single', members: [] }, personalityProfile: { status: 'empty', content: '' } };
+
+  const request = service.refreshProfile({
+    state,
+    card: { name: 'A' },
+    cast: state.cast,
+    entries: [],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(published[0]?.status, 'generating');
+  release();
+  await request;
+  assert.equal(published.at(-1)?.status, 'ready');
+});
+
+test('late profile response from an old chat is ignored', async () => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  let currentChatKey = 'old';
+  const service = createProfileService({
+    client: { requestDirector: async () => { await pending; return { content: 'late profile', members: [{ id: 'late', name: 'Late' }] }; } },
+    getCurrentChatKey: () => currentChatKey,
+  });
+  const state = { chatKey: 'old', cast: { mode: 'multi', members: [], multiMembers: [] }, personalityProfile: { status: 'empty', content: '' } };
+  const request = service.switchModeAndEnsureProfile({ state, card: {}, cast: state.cast, entries: [], connection: { mode: 'independent', endpoint: 'x', model: 'm' } });
+  currentChatKey = 'new';
+  release();
+  await request;
+  assert.notEqual(state.personalityProfile.content, 'late profile');
+  assert.deepEqual(state.cast.multiMembers, []);
 });

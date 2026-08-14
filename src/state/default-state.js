@@ -78,7 +78,7 @@ export function createDirectorState(chatKey = null, fingerprint = null) {
     chatKey,
     characterFingerprint: fingerprint,
     status: 'idle',
-    cast: { mode: 'single', locked: false, members: [], singleSelection: null, multiMembers: [], leadId: null },
+    cast: { mode: 'single', locked: false, members: [], singleSelection: null, multiMembers: [], candidateProfileInitialized: false, leadId: null },
     scripts: [],
     selectedScriptId: null,
     activeScriptId: null,

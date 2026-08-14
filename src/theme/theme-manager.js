@@ -72,9 +72,15 @@ textarea {
 }
 .stpd-script-list { display: grid; align-content: start; gap: 6px; }
 .stpd-script-list-item { width: 100%; min-width: 0; border-radius: 4px; }
+.stpd-script-time { color: var(--stpd-muted); font-size: 12px; }
+.stpd-script-stage-summary { color: var(--stpd-text); font-size: 12px; overflow-wrap: anywhere; }
 .stpd-script-detail,
 .stpd-script-section,
 .stpd-script-items { min-width: 0; overflow-wrap: anywhere; }
+.stpd-script-field { display: grid; grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr); gap: 6px; min-width: 0; }
+.stpd-script-stage,
+.stpd-script-clue { display: grid; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--stpd-border); border-radius: 4px; }
+.stpd-revision-summary { color: var(--stpd-muted); font-size: 12px; overflow-wrap: anywhere; }
 
 /* 单人/多人模式与人物编辑 */
 .stpd-cast-mode {
@@ -91,11 +97,18 @@ textarea {
   min-width: 0;
   border-radius: 4px;
 }
+.stpd-cast-dialog-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 58%); }
+.stpd-cast-dialog { display: grid; gap: 10px; width: min(520px, 100%); max-height: min(720px, calc(100dvh - 64px)); padding: 14px; overflow: auto; color: var(--stpd-text); background: var(--stpd-bg); border: 1px solid var(--stpd-border); border-radius: 6px; }
+.stpd-cast-dialog-header { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; }
+.stpd-cast-dialog-close { inline-size: 36px; block-size: 36px; padding: 0; }
+.stpd-cast-dialog-actions { justify-content: flex-end; }
 
 @media (max-width: 520px) {
   .stpd-script-layout { grid-template-columns: 1fr; }
   .stpd-script-list { max-height: 150px; }
   .stpd-cast-member { grid-template-columns: minmax(0, 1fr) auto; }
+  .stpd-cast-dialog-overlay { padding: 8px; }
+  .stpd-cast-dialog { max-height: calc(100dvh - 32px); }
 }
 `;}
 function matchingBrace(text,start){let depth=0;for(let i=start;i<text.length;i+=1){if(text[i]==='{')depth+=1;else if(text[i]==='}'&&--depth===0)return i;}return text.length-1;}

@@ -25,6 +25,13 @@ function assertSupportedVersion(raw) {
   }
 }
 
+function legacyScriptStatus(status) {
+  if (['awaiting-user', 'active', 'running'].includes(status)) return 'running';
+  if (status === 'paused') return 'paused';
+  if (['completed', 'stopped'].includes(status)) return status;
+  return 'stopped';
+}
+
 export function migrateState(raw = {}) {
   assertSupportedVersion(raw);
   const migrated = mergeDefaults(
@@ -41,6 +48,7 @@ export function migrateState(raw = {}) {
   migrated.scripts ??= [];
   if (raw.activeEvent) {
     const id = raw.activeEvent.id ?? `legacy-${raw.chatKey ?? 'chat'}`;
+    const status = legacyScriptStatus(raw.activeEvent.status);
     const existing = migrated.scripts.find((script) => script.id === id);
     if (!existing) {
       const now = raw.activeEvent.createdAt ?? raw.updatedAt ?? new Date().toISOString();
@@ -56,7 +64,7 @@ export function migrateState(raw = {}) {
         foreshadowing: cloneValue(raw.activeEvent.foreshadowing ?? []),
         facts: cloneValue(raw.activeEvent.facts ?? []),
         revisions: cloneValue(raw.activeEvent.revisions ?? []),
-        status: raw.activeEvent.status === 'awaiting-user' ? 'running' : (raw.activeEvent.status ?? 'running'),
+        status,
         currentStepIndex: raw.activeEvent.currentStepIndex ?? 0,
         pendingTurn: cloneValue(raw.activeEvent.pendingTurn ?? null),
         createdAt: now,
@@ -64,7 +72,8 @@ export function migrateState(raw = {}) {
       });
     }
     migrated.selectedScriptId ??= id;
-    migrated.activeScriptId ??= id;
+    if (['running', 'paused'].includes(status)) migrated.activeScriptId ??= id;
+    else if (migrated.activeScriptId === id) migrated.activeScriptId = null;
     migrated.activeEvent = migrated.scripts.find((script) => script.id === migrated.activeScriptId) ?? null;
   }
   return migrated;

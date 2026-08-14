@@ -49,6 +49,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       const reason = profile.status === 'stale-pending'
         ? '角色资料有改动，要重新生成侧写吗？'
         : profile.error === '还没连接副 API' ? profile.error : '导演还在看人设';
+      await persist(state, 'idle', reason);
       onNotice?.(reason);
       return { skipped: true, reason };
     }

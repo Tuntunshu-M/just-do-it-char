@@ -46,6 +46,9 @@ test('profile intent uses a profile-only contract with knowledge fog', () => {
   assert.doesNotMatch(system.content, /"event"\s*:/);
   assert.match(system.content, /明确知道.*合理推断.*明确不知道/s);
   assert.match(system.content, /世界书.*不等于.*全知/s);
+  assert.match(system.content, /世界书.*优先.*角色卡.*上下文/s);
+  assert.match(system.content, /全部.*候选人物/s);
+  assert.match(system.content, /"members"\s*:/);
 });
 
 test('multi profile contract extracts all evidenced candidates and relations', () => {
@@ -63,13 +66,29 @@ test('event intent composes multi-card stages, category tones, and anti-conspira
   );
   assert.match(system.content, /编剧兼群像角色策划者/);
   assert.match(system.content, /保留全部.*cast\.members/s);
-  assert.match(system.content, /每个阶段.*2-4.*活跃人物/s);
+  assert.match(system.content, /每个阶段.*至少 1 名.*活跃人物/s);
+  assert.doesNotMatch(system.content, /每个阶段.*2-4.*活跃人物/s);
   assert.match(system.content, /5-7.*阶段/);
   assert.match(system.content, /4-6.*伏笔/);
   assert.match(system.content, /主类型.*daily/);
   assert.match(system.content, /辅助调性.*crisis/);
   assert.match(system.content, /巧合.*阴谋/s);
   assert.match(system.content, /普通.*非阴谋解释/s);
+  assert.match(system.content, /"splitSteps"\s*:\s*\[/);
+  assert.match(system.content, /每(?:个)?阶段.*非空 splitSteps/s);
+  assert.match(system.content, /小标题.*具体行为/s);
+  assert.match(system.content, /不得预设 user.*行动/s);
+  assert.match(system.content, /已回收.*未注入.*使用中.*待使用/s);
+  assert.match(system.content, /connectedStepTitle/);
+});
+
+test('single-card event stages also require non-empty split steps', () => {
+  const [system] = buildDirectorMessages(
+    { cast: { mode: 'single' } },
+    { type: 'plan-event', castMode: 'single', mainCategory: 'daily' },
+  );
+  assert.match(system.content, /"splitSteps"\s*:\s*\[/);
+  assert.match(system.content, /每(?:个)?阶段.*非空 splitSteps/s);
 });
 
 test('prepare-step injects only the current stage and eligible clues', () => {

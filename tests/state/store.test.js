@@ -84,3 +84,33 @@ test('transactions for one chat are serialized', async () => {
   assert.deepEqual(order, ['first-start', 'first-end', 'second-start']);
   assert.equal(store.loadChat('chat-a', 'card-a').counters.turns, 2);
 });
+
+test('failed host saves roll back chat containers and the caller state', async () => {
+  const { adapter, host } = createAdapterFixture();
+  const store = createStore(adapter);
+  const initial = store.loadChat('chat-a', 'card-a');
+  initial.historySummary = 'saved value';
+  await store.saveChat(initial);
+
+  adapter.saveChatState = async () => { throw new Error('disk unavailable'); };
+  initial.historySummary = 'half committed value';
+
+  await assert.rejects(store.saveChat(initial), /disk unavailable/);
+  assert.equal(initial.historySummary, 'saved value');
+  assert.equal(store.loadChat('chat-a', 'card-a').historySummary, 'saved value');
+});
+
+test('failed host saves roll back global containers and the caller settings', async () => {
+  const { adapter } = createAdapterFixture();
+  const store = createStore(adapter);
+  const settings = store.loadGlobal();
+  settings.genre.mode = 'fantasy';
+  await store.saveGlobal(settings);
+
+  adapter.saveSettings = async () => { throw new Error('settings unavailable'); };
+  settings.genre.mode = 'reality';
+
+  await assert.rejects(store.saveGlobal(settings), /settings unavailable/);
+  assert.equal(settings.genre.mode, 'fantasy');
+  assert.equal(store.loadGlobal().genre.mode, 'fantasy');
+});

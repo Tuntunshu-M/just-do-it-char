@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { directorStatus } from '../../src/ui/director-console.js';
 
 async function source() {
   const fs = await import('node:fs/promises');
@@ -11,6 +12,32 @@ async function source() {
 async function uiSource(path) {
   return (await import('node:fs/promises')).readFile(new URL(`../../src/ui/${path}`, import.meta.url), 'utf8');
 }
+
+test('console status ignores finished generation phases and reflects active scripts', () => {
+  assert.deepEqual(directorStatus({
+    status: 'idle',
+    generation: { phase: 'streaming', finishedAt: '2026-08-14T10:00:00.000Z' },
+    scripts: [],
+  }), { phase: 'idle', label: '待机中' });
+
+  for (const status of ['running', 'paused']) {
+    assert.deepEqual(directorStatus({
+      activeScriptId: 'script-1',
+      scripts: [{ id: 'script-1', status }],
+      generation: { phase: 'completed', finishedAt: '2026-08-14T10:00:00.000Z' },
+    }), { phase: 'active', label: '启用中' });
+  }
+});
+
+test('console status only shows request phases while work is unfinished', () => {
+  assert.deepEqual(directorStatus({ generation: { phase: 'streaming', finishedAt: null } }), {
+    phase: 'streaming', label: '流式生成中',
+  });
+  assert.deepEqual(directorStatus({
+    personalityProfile: { status: 'generating' },
+    generation: { phase: 'idle', finishedAt: '2026-08-14T10:00:00.000Z' },
+  }), { phase: 'generating', label: '侧写生成中' });
+});
 
 test('console module exports lifecycle contract', async () => {
   const module = await import('../../src/ui/director-console.js');

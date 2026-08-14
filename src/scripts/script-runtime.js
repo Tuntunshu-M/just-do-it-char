@@ -31,6 +31,7 @@ export function createScriptRuntime({ store }) {
         }
         const script = find(draft, scriptId);
         if (!script) throw new Error('Script not found');
+        if (!['draft', 'stopped'].includes(script.status)) throw new Error(`Script cannot be performed from ${script.status} status`);
         script.status = 'running';
         script.currentStepIndex = 0;
         script.pendingTurn = null;
