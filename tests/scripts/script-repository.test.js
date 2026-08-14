@@ -72,3 +72,53 @@ test('repository migration does not activate a legacy event without running stat
   assert.equal(state.activeScriptId, null);
   assert.equal(state.activeEvent, null);
 });
+
+test('repository removes selected inactive scripts but preserves running and paused scripts', async () => {
+  const { states, repository } = fixture();
+  const draft = await repository.createDraft('a', 'f', { id: 'draft', title: '草稿' });
+  const running = await repository.createDraft('a', 'f', { id: 'running', title: '运行中', status: 'running' });
+  const paused = await repository.createDraft('a', 'f', { id: 'paused', title: '已暂停', status: 'paused' });
+  states.get('a').selectedScriptId = draft.id;
+  states.get('a').activeScriptId = running.id;
+  states.get('a').activeEvent = states.get('a').scripts.find((script) => script.id === running.id);
+
+  const result = await repository.remove('a', 'f', [draft.id, running.id, paused.id]);
+
+  assert.deepEqual(result.removedIds, [draft.id]);
+  assert.deepEqual(result.protectedIds, [running.id, paused.id]);
+  assert.deepEqual(states.get('a').scripts.map((script) => script.id), [running.id, paused.id]);
+  assert.equal(states.get('a').selectedScriptId, running.id);
+  assert.equal(states.get('a').activeScriptId, running.id);
+  assert.equal(states.get('a').activeEvent.id, running.id);
+});
+
+test('repository clears all inactive scripts only in the requested chat', async () => {
+  const { states, repository } = fixture();
+  await repository.createDraft('a', 'f', { id: 'a-draft', title: '本聊天草稿' });
+  await repository.createDraft('a', 'f', { id: 'a-running', title: '本聊天运行中', status: 'running' });
+  await repository.createDraft('b', 'f', { id: 'b-draft', title: '另一个聊天草稿' });
+  states.get('a').activeScriptId = 'a-running';
+  states.get('a').activeEvent = states.get('a').scripts.find((script) => script.id === 'a-running');
+
+  const result = await repository.clear('a', 'f');
+
+  assert.deepEqual(result.removedIds, ['a-draft']);
+  assert.deepEqual(result.protectedIds, ['a-running']);
+  assert.deepEqual(states.get('a').scripts.map((script) => script.id), ['a-running']);
+  assert.deepEqual(states.get('b').scripts.map((script) => script.id), ['b-draft']);
+  assert.equal(states.get('a').selectedScriptId, 'a-running');
+  assert.equal(states.get('a').activeScriptId, 'a-running');
+});
+
+test('repository updates editable content without allowing runtime identity changes', async () => {
+  const { states, repository } = fixture();
+  const script = await repository.createDraft('a', 'f', { id: 'script', title: '旧标题' });
+  const updated = await repository.update('a', 'f', script.id, { title: '新标题', premise: '新大纲', id: 'changed', status: 'running', currentStepIndex: 9, pendingTurn: { id: 'turn' }, createdAt: 'changed' });
+  assert.equal(updated.title, '新标题');
+  assert.equal(updated.premise, '新大纲');
+  assert.equal(updated.id, script.id);
+  assert.equal(updated.status, 'draft');
+  assert.equal(updated.currentStepIndex, 0);
+  assert.equal(updated.pendingTurn, null);
+  assert.equal(updated.createdAt, script.createdAt);
+});

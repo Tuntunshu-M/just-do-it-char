@@ -114,25 +114,22 @@ function eventContract(intent, context) {
   const multi = intent.castMode === 'multi' || context.cast?.mode === 'multi';
   const clueCount = multi ? '4-6' : '3-5';
   const stepExample = multi
-    ? `{ "id": "step-1", "title": "行动导向的阶段小标题", "goal": "阶段目标", "activity": "活跃人物主动推进阶段的总体行为", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"], "activeCharacterIds": ["character-1"], "characterActions": [{ "characterId": "character-1", "goal": "个人目标", "action": "人物姓名采取符合当前资料的具体行动" }], "interaction": "活跃人物之间的互动；只有一人时写其与现场的互动", "userPlan": "为 user 留出的响应机会，不预设 user 的行动" }`
+    ? `{ "id": "step-1", "title": "行动导向的阶段小标题", "goal": "阶段目标", "activity": "角色主动推进阶段的总体行为", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"], "activeCharacterIds": ["character-1"], "characterActions": [{ "characterId": "character-1", "goal": "个人目标", "action": "人物姓名采取符合当前资料的具体行动" }], "interaction": "活跃人物之间的互动；只有一人时写其与现场的互动" }`
     : `{ "id": "step-1", "title": "行动导向的阶段小标题", "goal": "阶段目标", "activity": "{{char}}根据 user 已经表达的处境采取符合当前资料的具体行动", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"] }`;
   return `${castRules(intent, context)}
 ${categoryRules(intent)}
 题材 genre 是独立世界层，不参与日常/危机/色情权重。规则怪谈和无限流必须维护规则账本，不得静默改写公开规则。
-剧情内容只能来自当前角色卡、所选世界书、当前聊天上下文和本次事件想法。下方结构示例只用于说明字段和格式，不得复用示例文本作为剧情内容；不得引入当前来源中不存在的无关旧剧本情节、人物、地点、道具、案件或伏笔。
-必须完整写出非空的剧情大纲、关键冲突、高潮和结局，不得省略、留空、写“待定”或用占位语敷衍。
-输出完整起承转合。event.steps 必须包含 5-7 个不同阶段和唯一 id；每阶段必须使用“小标题 + char 的具体行为”格式，title 是行动导向的小标题，activity 是角色实际要做的具体行为；每阶段必须包含非空 splitSteps 数组，列出至少 2 个可执行的拆分步骤；每阶段包含角色主动目标、主动活动、结束推进点${multi ? '、至少 1 名 activeCharacterIds、每名活跃人物的目标与用具体姓名描述的行动、人物间互动和对 user 的策划' : ''}。
+剧情内容只能来自当前角色卡、所选世界书、当前聊天上下文和本次事件想法。下方结构示例仅供参考，禁止照抄示例内容作为剧情；不得引入当前来源中不存在的无关旧剧本情节、人物、地点、道具、案件或伏笔。
+必须完整写出非空的剧情大纲，冲突、高潮和结局统一整合在大纲中，不得省略、留空、写“待定”或用占位语敷衍。
+输出完整起承转合。event.steps 必须包含 5-7 个不同阶段和唯一 id；每阶段必须使用“小标题 + char 的具体行为”格式，title 是行动导向的小标题，activity 是唯一的角色主动活动字段；每阶段必须包含非空 splitSteps 数组，列出至少 2 个该活动的可执行步骤；每阶段包含角色主动目标、角色主动活动、结束推进点${multi ? '、至少 1 名 activeCharacterIds、每名活跃人物的目标与用具体姓名描述的行动、人物间互动' : ''}。
 剧本不得预设 user 尚未在 userinput/latestUserMessage 中表达的行动、决定、受伤、摔倒或结果。只能响应 user 已明确描述或正在发生的状态，并始终给 user 留出选择空间。
 foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现、埋设阶段、回收阶段、回收方式、影响及可判断的成熟/揭示条件。每条还必须包含 status（只能是“已回收”“未注入”“使用中”“待使用”）和 connectedStepTitle（必须逐字等于 event.steps 中一个真实 title），对应显示格式为“[状态]伏笔内容[连接阶段标题]”。规划时保存全部阶段和伏笔，但 injection 只写当前第一阶段所需的紧凑幕后指令，不写完整剧本。
-创建事件时所有字段都必须保留，结构如下（数组省略的同类项仍必须达到规定数量）：
+创建事件时以下字段都必须保留，结构示例仅供参考，禁止照抄示例内容（数组省略的同类项仍必须达到规定数量）：
 {
   "event": {
     "title": "简短事件名",
     "category": "${intent.mainCategory ?? 'daily'}",
     "premise": "完整剧情大纲，概述开端、发展、转折、高潮与结局",
-    "conflict": "主要矛盾",
-    "climax": "高潮事件及角色主动行动",
-    "ending": "结局走向",
     "steps": [
       ${stepExample}
     ]

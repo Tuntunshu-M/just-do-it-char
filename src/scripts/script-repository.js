@@ -13,6 +13,8 @@ function legacyScriptStatus(status) {
   return 'stopped';
 }
 
+const PROTECTED_UPDATE_FIELDS = ['id', 'status', 'currentStepIndex', 'pendingTurn', 'createdAt', 'updatedAt'];
+
 export function normalizeScript(plan = {}, options = {}) {
   const now = options.now ?? new Date().toISOString();
   const status = options.status ?? plan.status ?? 'draft';
@@ -26,9 +28,6 @@ export function normalizeScript(plan = {}, options = {}) {
     title: plan.title ?? '未命名剧本',
     category: plan.category ?? '',
     premise: plan.premise ?? '',
-    conflict: plan.conflict ?? '',
-    climax: plan.climax ?? '',
-    ending: plan.ending ?? '',
     steps,
     foreshadowing: clone(plan.foreshadowing ?? []),
     facts: clone(plan.facts ?? []),
@@ -47,7 +46,7 @@ export function createScriptRepository(store) {
 
   return {
     async createDraft(chatKey, fingerprint, plan) {
-      const script = normalizeScript(plan, { status: 'draft' });
+      const script = normalizeScript(plan, { status: plan.status ?? 'draft' });
       await tx(chatKey, fingerprint, (state) => {
         state.scripts ??= [];
         state.scripts.push(script);
@@ -74,9 +73,36 @@ export function createScriptRepository(store) {
       return tx(chatKey, fingerprint, (state) => {
         const script = find(state, scriptId);
         if (!script) throw new Error('Script not found');
-        Object.assign(script, clone(changes), { updatedAt: new Date().toISOString() });
+        const editable = clone(changes) ?? {};
+        for (const key of PROTECTED_UPDATE_FIELDS) delete editable[key];
+        Object.assign(script, editable, { updatedAt: new Date().toISOString() });
         if (state.activeScriptId === scriptId) state.activeEvent = script;
         return clone(script);
+      });
+    },
+    async remove(chatKey, fingerprint, scriptIds = []) {
+      return tx(chatKey, fingerprint, (state) => {
+        const requested = new Set(Array.isArray(scriptIds) ? scriptIds : [scriptIds]);
+        const protectedIds = state.scripts.filter((script) => requested.has(script.id) && ['running', 'paused'].includes(script.status)).map((script) => script.id);
+        const removedIds = state.scripts.filter((script) => requested.has(script.id) && !['running', 'paused'].includes(script.status)).map((script) => script.id);
+        state.scripts = state.scripts.filter((script) => !removedIds.includes(script.id));
+        if (!state.scripts.some((script) => script.id === state.selectedScriptId)) {
+          state.selectedScriptId = state.activeScriptId && state.scripts.some((script) => script.id === state.activeScriptId)
+            ? state.activeScriptId
+            : state.scripts[0]?.id ?? null;
+        }
+        return { removedIds, protectedIds };
+      });
+    },
+    async clear(chatKey, fingerprint) {
+      return tx(chatKey, fingerprint, (state) => {
+        const protectedIds = state.scripts.filter((script) => ['running', 'paused'].includes(script.status)).map((script) => script.id);
+        const removedIds = state.scripts.filter((script) => !['running', 'paused'].includes(script.status)).map((script) => script.id);
+        state.scripts = state.scripts.filter((script) => ['running', 'paused'].includes(script.status));
+        state.selectedScriptId = state.activeScriptId && state.scripts.some((script) => script.id === state.activeScriptId)
+          ? state.activeScriptId
+          : state.scripts[0]?.id ?? null;
+        return { removedIds, protectedIds };
       });
     },
     async migrateLegacyEvent(chatKey, fingerprint) {

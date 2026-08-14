@@ -26,8 +26,10 @@ export function renderPreferencesView({ body, settings, state, services, saveSet
   const cnc = el(doc, 'input', { type: 'checkbox', checked: state.sceneSafety.cncEnabled });
   cnc.onchange = async () => { if (!cnc.checked) { state.sceneSafety.cncEnabled = false; saveState(); return; } if (!state.sceneSafety.safewords.length) { cnc.checked = false; services.notice?.('请先填写安全词。'); return; } const accepted = await confirmAction(services, '启用高风险模式后，导演只会在当前聊天授权范围内解释角色内口头反抗；安全词和硬禁区始终有效。'); if (accepted) { state.sceneSafety.cncEnabled = true; saveState(); } else cnc.checked = false; };
   body.append(field(doc, '高风险模式（色情向）', cnc));
-  const idle = el(doc, 'input', { type: 'checkbox', checked: settings.trigger.idleEnabled }); idle.onchange = () => { settings.trigger.idleEnabled = idle.checked; saveSettings(); };
-  const idleMinutes = el(doc, 'input', { type: 'number', min: '1', max: '1440', value: String(settings.trigger.idleMinutes ?? 30) }); idleMinutes.onchange = () => { settings.trigger.idleMinutes = Math.max(1, Number(idleMinutes.value) || 30); saveSettings(); };
-  const windows = el(doc, 'input', { type: 'text', value: (settings.trigger.allowedWindows ?? []).map((item) => item.join('-')).join(', '), placeholder: '09:00-23:00' }); windows.onchange = () => { settings.trigger.allowedWindows = windows.value.split(',').map((item) => item.trim().split('-')).filter((item) => item.length === 2 && item.every((part) => /^\d{2}:\d{2}$/.test(part))); saveSettings(); };
+  const idle = el(doc, 'input', { type: 'checkbox', checked: settings.trigger.idleEnabled, disabled: true });
+  const idleMinutes = el(doc, 'input', { type: 'number', min: '1', max: '1440', value: String(settings.trigger.idleMinutes ?? 30), disabled: true });
+  const windows = el(doc, 'input', { type: 'text', value: (settings.trigger.allowedWindows ?? []).map((item) => item.join('-')).join(', '), placeholder: '09:00-23:00', disabled: true });
   body.append(field(doc, '启用空闲触发', idle), field(doc, '空闲分钟', idleMinutes), field(doc, '允许时段', windows));
+  const idleLabel = body.children.at(-3)?.children?.[0];
+  if (idleLabel) idleLabel.textContent = '启用空闲触发（还没做）';
 }

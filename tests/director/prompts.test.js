@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { buildDirectorMessages } from '../../src/director/prompts.js';
+
+test('production prompts contain no known test-topic contamination anchors', async () => {
+  const source = await readFile(new URL('../../src/director/prompts.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /蛇化者|兽化者|警局|水箱|刑侦|法医|凶手|死者/);
+});
 
 test('prompt preserves character authority and requests compact JSON only', () => {
   const messages = buildDirectorMessages({ personalityEvidence: [{ source: 'card', value: 'calm' }] }, { type: 'advance' });
@@ -17,7 +23,7 @@ test('prompt includes a complete required JSON contract and null-event fallback'
   }
   assert.match(system.content, /"event"\s*:\s*null/);
   assert.match(system.content, /只输出一个 JSON 对象/);
-  assert.match(system.content, /所有字段都必须保留/);
+  assert.match(system.content, /以下字段都必须保留/);
 });
 
 test('prompt defines every required action field', () => {
@@ -34,7 +40,8 @@ test('prompt prioritizes a complete compact JSON object and shows a valid create
   assert.match(system.content, /缩短.*文字/is);
   assert.doesNotMatch(system.content, /900.*字/);
   assert.match(system.content, /"event"\s*:\s*\{[\s\S]*"title"\s*:/);
-  for (const field of ['premise', 'conflict', 'climax', 'ending']) assert.match(system.content, new RegExp(`"${field}"\\s*:`));
+  assert.match(system.content, /"premise"\s*:/);
+  for (const field of ['conflict', 'climax', 'ending']) assert.doesNotMatch(system.content, new RegExp(`"${field}"\\s*:`));
   assert.match(system.content, /无法.*完整.*"event"\s*:\s*null/is);
 });
 
@@ -107,6 +114,7 @@ test('event intent composes multi-card stages, category tones, and anti-conspira
   assert.match(system.content, /每(?:个)?阶段.*非空 splitSteps/s);
   assert.match(system.content, /小标题.*具体行为/s);
   assert.match(system.content, /不得预设 user.*行动/s);
+  assert.match(system.content, /角色主动活动/s);
   assert.match(system.content, /已回收.*未注入.*使用中.*待使用/s);
   assert.match(system.content, /connectedStepTitle/);
 });
@@ -118,7 +126,8 @@ test('event prompt uses only current sources and contains no crime-story example
   );
   assert.doesNotMatch(system.content, /警局|刑侦|水箱|法医|凶手|死者/);
   assert.match(system.content, /只能.*当前角色卡.*所选世界书.*当前聊天上下文.*本次事件想法/s);
-  assert.match(system.content, /结构示例.*不得.*复用.*剧情内容/s);
+  assert.match(system.content, /结构示例.*禁止照抄.*剧情/s);
+  assert.match(system.content, /仅供参考.*禁止照抄/s);
   assert.match(system.content, /不得引入.*无关.*旧剧本/s);
 });
 

@@ -69,3 +69,25 @@ test('event page keeps a blocked generation reason visible and offers retry', as
   await retry.onclick();
   assert.deepEqual(calls, [['', true]]);
 });
+
+test('event idea survives a failed confirmation and clears only after planning succeeds', async () => {
+  const doc = createDocument(); const body = doc.createElement('section');
+  const calls = [];
+  let result = { status: 'failed' };
+  renderEventView({
+    body,
+    state: { activeEvent: null, directorNotes: '', generation: { error: '失败' } },
+    services: { onManualEvent: async (...args) => { calls.push(args); return result; } },
+    saveState() {},
+  });
+  const idea = all(body).find((node) => node.tagName === 'textarea');
+  idea.value = '保留这条想法';
+  all(body).find((node) => node.tagName === 'button' && !node.className).onclick();
+  await all(body).find((node) => node.tagName === 'button' && node.className === 'stpd-primary').onclick();
+  assert.equal(idea.value, '保留这条想法');
+
+  result = { status: 'planned', scriptId: 'script-1' };
+  all(body).find((node) => node.tagName === 'button' && !node.className).onclick();
+  await all(body).find((node) => node.tagName === 'button' && node.className === 'stpd-primary').onclick();
+  assert.equal(all(body).find((node) => node.tagName === 'textarea').value, '');
+});

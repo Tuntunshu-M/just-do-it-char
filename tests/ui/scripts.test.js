@@ -10,9 +10,10 @@ const flatten = (node) => [node, ...(node.children ?? []).flatMap(flatten)];
 
 test('script page renders history toolbar and complete selected detail', () => {
   const doc = documentFixture(); const body = doc.createElement('section');
-  renderScriptsView({ body, state: { selectedScriptId: 's', activeScriptId: null, scripts: [{ id: 's', title: '雨夜', status: 'draft', premise: '大纲', conflict: '冲突', climax: '高潮', ending: '结局', steps: [{ id: '1', goal: '阶段' }], foreshadowing: [{ id: 'f', surface: '旧物' }], revisions: [] }] }, services: {} });
+  renderScriptsView({ body, state: { selectedScriptId: 's', activeScriptId: null, scripts: [{ id: 's', title: '雨夜', status: 'draft', premise: '大纲', steps: [{ id: '1', goal: '阶段', activity: '角色主动活动' }], foreshadowing: [{ id: 'f', surface: '旧物' }], revisions: [] }] }, services: {} });
   const text = flatten(body).map((node) => node.textContent).join('|');
-  for (const label of ['雨夜', '开演', '暂停', '继续', '改变方向', '停止', '完整大纲', '阶段', '伏笔', '关键冲突', '高潮', '结局']) assert.match(text, new RegExp(label));
+  for (const label of ['雨夜', '开演', '暂停', '继续', '改变方向', '停止', '完整大纲', '阶段', '伏笔', '角色主动活动']) assert.match(text, new RegExp(label));
+  for (const label of ['关键冲突', '高潮', '结局']) assert.doesNotMatch(text, new RegExp(label));
   assert.ok(flatten(body).some((node) => node.className === 'stpd-script-layout'));
 });
 
@@ -33,17 +34,18 @@ test('script detail renders complete stage, cast, clue and revision fields', () 
   const doc = documentFixture(); const body = doc.createElement('section');
   renderScriptsView({ body, state: {
     selectedScriptId: 's', activeScriptId: 's', scripts: [{
-      id: 's', title: '群像', status: 'paused', premise: '完整大纲', conflict: '主要矛盾', climax: '高潮事件', ending: '结局走向', currentStepIndex: 0,
-      steps: [{ id: 'stage-1', title: '在警局下马威中立足', status: 'current', goal: '取得信任', coreEvent: '共同赴约', activity: '甲展示自己的能力', activeCharacterIds: ['a', 'b'],
+      id: 's', title: '群像', status: 'paused', premise: '完整大纲', currentStepIndex: 0,
+      steps: [{ id: 'stage-1', title: '在会面中立足', status: 'current', goal: '取得信任', activity: '甲展示自己的能力', activeCharacterIds: ['a', 'b'],
         characterPlans: [{ characterId: 'a', name: '甲', goal: '确认身份', action: '主动邀请' }, { characterId: 'b', name: '乙', goal: '隐藏秘密', action: '转移话题' }],
-        interaction: '甲乙互相试探', userPlan: '安排 user 参与晚餐', splitSteps: ['发出邀请', '抵达餐厅'] }],
-      foreshadowing: [{ id: 'f', status: '待使用', connectedStepTitle: '在警局下马威中立足', source: '乙的旧物', content: '刻字戒指', surface: '普通饰品', plantStepId: 'stage-1', revealStepId: 'stage-4', recovery: '公开来历', impact: '联盟破裂', condition: 'user 发现刻字' }],
+        interaction: '甲乙互相试探', splitSteps: ['发出邀请', '等待响应'] }],
+      foreshadowing: [{ id: 'f', status: '待使用', connectedStepTitle: '在会面中立足', source: '乙的旧物', content: '刻字戒指', surface: '普通饰品', plantStepId: 'stage-1', revealStepId: 'stage-4', recovery: '公开来历', impact: '联盟破裂', condition: '角色观察到刻字' }],
       revisions: [{ id: 'r', createdAt: '2026-08-13T10:00:00.000Z', reason: '改去海边', currentStepIndex: 0, outline: { premise: '修订大纲' } }],
     }],
   }, services: {} });
   const text = flatten(body).map((node) => node.textContent).join('|');
-  for (const value of ['在警局下马威中立足', '甲展示自己的能力', '取得信任', '共同赴约', '甲', '确认身份', '主动邀请', '甲乙互相试探', '安排 user 参与晚餐', '发出邀请', '抵达餐厅', '乙的旧物', '普通饰品', 'stage-4', '公开来历', '联盟破裂', 'user 发现刻字', '改去海边', '修订大纲']) assert.match(text, new RegExp(value));
-  assert.match(text, /\[待使用\]刻字戒指\[在警局下马威中立足\]/);
+  for (const value of ['在会面中立足', '甲展示自己的能力', '取得信任', '角色主动活动', '甲', '确认身份', '主动邀请', '甲乙互相试探', '发出邀请', '等待响应', '乙的旧物', '普通饰品', 'stage-4', '公开来历', '联盟破裂', '角色观察到刻字', '改去海边', '修订大纲']) assert.match(text, new RegExp(value));
+  assert.doesNotMatch(text, /核心事件|对 user 的策划/);
+  assert.match(text, /\[待使用\]刻字戒指\[在会面中立足\]/);
 });
 
 test('perform is enabled only for a selected draft or stopped script', () => {
@@ -113,4 +115,40 @@ test('script selection relies on the persisted service refresh without rerenderi
 
   assert.equal(selectedId, 'second');
   assert.equal(staleRerenders, 0);
+});
+
+test('script editor submits editable content without overwriting runtime state', async () => {
+  const doc = documentFixture(); const body = doc.createElement('section'); let args;
+  renderScriptsView({ body, state: { selectedScriptId: 's', activeScriptId: null, scripts: [{ id: 's', title: '旧标题', category: '日常', premise: '旧大纲', steps: [{ title: '旧阶段' }], foreshadowing: [{ content: '旧伏笔' }], facts: [{ id: 'fact' }], revisions: [{ id: 'revision' }], status: 'draft', currentStepIndex: 0, pendingTurn: null }] }, services: { updateScript: async (...value) => { args = value; } } });
+  const edit = flatten(body).find((node) => node.tagName === 'button' && node.textContent === '编辑');
+  await edit.onclick();
+  const inputs = flatten(body).filter((node) => ['input', 'textarea'].includes(node.tagName));
+  const title = inputs.find((node) => node.attributes?.['aria-label'] === '标题');
+  const premise = inputs.find((node) => node.attributes?.['aria-label'] === '完整大纲');
+  const clues = inputs.find((node) => node.attributes?.['aria-label'] === '伏笔 JSON');
+  title.value = '新标题'; premise.value = '新大纲'; clues.value = '[{"content":"新伏笔"}]';
+  const save = flatten(body).find((node) => node.tagName === 'button' && node.textContent === '保存剧本');
+  await save.onclick();
+  assert.equal(args[0], 's');
+  assert.deepEqual(args[1], { title: '新标题', category: '日常', premise: '新大纲', steps: [{ title: '旧阶段' }], foreshadowing: [{ content: '新伏笔' }], facts: [{ id: 'fact' }], revisions: [{ id: 'revision' }] });
+});
+
+test('script deletion supports multi-select and protects running records', async () => {
+  const doc = documentFixture(); const body = doc.createElement('section'); let deleted;
+  renderScriptsView({ body, state: { selectedScriptId: 'a', scripts: [{ id: 'a', title: 'A', status: 'draft' }, { id: 'b', title: 'B', status: 'stopped' }, { id: 'r', title: 'R', status: 'running' }] }, services: { confirm: async () => true, deleteScripts: async (ids) => { deleted = ids; } } });
+  const checkboxes = flatten(body).filter((node) => node.tagName === 'input' && node.attributes?.type === 'checkbox');
+  assert.equal(checkboxes.find((node) => node.attributes['aria-label'] === '选择R').disabled, true);
+  for (const label of ['选择A', '选择B']) { const checkbox = checkboxes.find((node) => node.attributes['aria-label'] === label); checkbox.checked = true; checkbox.onchange(); }
+  const remove = flatten(body).find((node) => node.tagName === 'button' && node.textContent === '删除所选');
+  assert.equal(remove.disabled, false);
+  await remove.onclick();
+  assert.deepEqual(new Set(deleted), new Set(['a', 'b']));
+});
+
+test('clear current chat delegates to the protected repository service', async () => {
+  const doc = documentFixture(); const body = doc.createElement('section'); let cleared = 0;
+  renderScriptsView({ body, state: { scripts: [] }, services: { confirm: async () => true, clearScripts: async () => { cleared += 1; } } });
+  const clear = flatten(body).find((node) => node.tagName === 'button' && node.textContent === '清空本聊天');
+  await clear.onclick();
+  assert.equal(cleared, 1);
 });

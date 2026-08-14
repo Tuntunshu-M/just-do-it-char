@@ -22,7 +22,7 @@ function currentStageSummary(script) {
   return step?.title ?? step?.name ?? step?.goal ?? step?.description ?? '';
 }
 
-export function renderScriptList({ doc, state, services }) {
+export function renderScriptList({ doc, state, services, selectedIds = new Set(), onToggle }) {
   const list = el(doc, 'aside', { class: 'stpd-script-list', 'aria-label': '剧本记录' });
   list.append(el(doc, 'h4', {}, '剧本记录'));
   const scripts = [...(state.scripts ?? [])].reverse();
@@ -32,11 +32,15 @@ export function renderScriptList({ doc, state, services }) {
   }
   for (const script of scripts) {
     const selected = state.selectedScriptId === script.id;
+    const row = el(doc, 'div', { class: 'stpd-script-list-row' });
     const button = el(doc, 'button', {
       type: 'button',
       class: `stpd-script-list-item${selected ? ' is-selected' : ''}`,
       'aria-pressed': String(selected),
     });
+    const checkbox = el(doc, 'input', { type: 'checkbox', checked: selectedIds.has(script.id), disabled: ['running', 'paused'].includes(script.status), 'aria-label': `选择${script.title || '剧本'}` });
+    checkbox.onclick = (event) => event.stopPropagation();
+    checkbox.onchange = () => onToggle?.(script.id, checkbox.checked);
     button.append(
       el(doc, 'strong', {}, script.title || '未命名剧本'),
       el(doc, 'span', { class: 'stpd-script-status' }, STATUS_LABELS[script.status] ?? script.status ?? '未开演'),
@@ -47,7 +51,8 @@ export function renderScriptList({ doc, state, services }) {
     button.onclick = () => runAction(async () => {
       await services.selectScript?.(script.id);
     }, services.notice);
-    list.append(button);
+    row.append(checkbox, button);
+    list.append(row);
   }
   return list;
 }
