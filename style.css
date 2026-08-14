@@ -243,6 +243,12 @@
 #st-proactive-director .stpd-script-time { color: var(--stpd-muted); font-size: 12px; }
 #st-proactive-director .stpd-script-stage-summary { color: var(--stpd-text); font-size: 12px; overflow-wrap: anywhere; }
 #st-proactive-director .stpd-script-detail { display: grid; align-content: start; gap: 10px; padding-right: 4px; }
+#st-proactive-director .stpd-script-detail-header { position: sticky; top: 0; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding-bottom: 8px; background: var(--stpd-bg); border-bottom: 1px solid var(--stpd-border); }
+#st-proactive-director .stpd-script-detail-header h3 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+#st-proactive-director .stpd-script-editor { display: grid; gap: 8px; min-width: 0; padding: 10px; background: var(--stpd-panel); border: 1px solid var(--stpd-border); border-radius: 4px; }
+#st-proactive-director .stpd-script-editor input,
+#st-proactive-director .stpd-script-editor textarea { width: 100%; min-width: 0; resize: vertical; }
+#st-proactive-director .stpd-script-editor .stpd-row { justify-content: flex-end; flex-wrap: wrap; }
 #st-proactive-director .stpd-script-section { display: grid; gap: 6px; min-width: 0; padding-top: 8px; border-top: 1px solid var(--stpd-border); }
 #st-proactive-director .stpd-script-section:first-child { padding-top: 0; border-top: 0; }
 #st-proactive-director .stpd-script-items { display: grid; gap: 6px; margin: 0; padding-left: 22px; }

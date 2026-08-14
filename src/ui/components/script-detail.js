@@ -121,15 +121,21 @@ export function renderScriptDetail({ doc, script, services }) {
     detail.append(el(doc, 'p', { class: 'stpd-muted' }, '选择左侧剧本查看完整策划案。'));
     return detail;
   }
+  const header = el(doc, 'div', { class: 'stpd-script-detail-header' });
+  const edit = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '编辑');
+  edit.onclick = () => {
+    if (Array.from(detail.children ?? []).some((node) => node.className === 'stpd-script-editor')) return;
+    const editor = scriptEditor(doc, script, services);
+    if (typeof header.after === 'function') header.after(editor);
+    else detail.append(editor);
+  };
+  header.append(el(doc, 'h3', {}, script.title || '未命名剧本'), edit);
   detail.append(
-    el(doc, 'h3', {}, script.title || '未命名剧本'),
+    header,
     section(doc, '完整大纲', script.premise),
     stageSection(doc, script.steps, script.currentStepIndex),
     clueSection(doc, script.foreshadowing),
   );
-  const edit = el(doc, 'button', { type: 'button', class: 'stpd-compact' }, '编辑');
-  edit.onclick = () => { if (!detail.children?.some((node) => node.className === 'stpd-script-editor')) detail.append(scriptEditor(doc, script, services)); };
-  detail.append(edit);
   if (script.revisions?.length) {
     const revisions = el(doc, 'section', { class: 'stpd-script-section stpd-script-revisions' });
     revisions.append(el(doc, 'h4', {}, '修改记录'));
