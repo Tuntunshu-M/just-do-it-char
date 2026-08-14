@@ -59,6 +59,35 @@ test('multi profile contract extracts all evidenced candidates and relations', (
   assert.match(system.content, /认知边界/);
 });
 
+test('profile guidance templates are optional, independent, and resolve dual-template conflicts', () => {
+  const profilePrompt = (profileGuidance) => buildDirectorMessages(
+    { cast: { mode: 'single' } },
+    { type: 'profile-character', profileGuidance },
+  )[0].content;
+  const none = profilePrompt([]);
+  const gemini = profilePrompt(['gemini']);
+  const claude = profilePrompt(['claude']);
+  const both = profilePrompt(['gemini', 'claude']);
+
+  assert.doesNotMatch(none, /角色塑造红线|主动性与情感表达/);
+  assert.match(gemini, /【角色塑造红线·请严格遵守】/);
+  assert.match(gemini, /请始终尊重 user 的自主性/);
+  assert.doesNotMatch(gemini, /【主动性与情感表达·请严格遵守】/);
+  assert.match(claude, /【主动性与情感表达·请严格遵守】/);
+  assert.match(claude, /角色必须主动推进剧情和关系/);
+  assert.doesNotMatch(claude, /【角色塑造红线·请严格遵守】/);
+  assert.match(both, /【角色塑造红线·请严格遵守】/);
+  assert.match(both, /【主动性与情感表达·请严格遵守】/);
+  assert.match(both, /Gemini.*边界.*user 自主性.*优先/s);
+});
+
+test('profile guidance never enters event, step, or reaction prompts', () => {
+  for (const type of ['plan-event', 'prepare-step', 'evaluate-reaction']) {
+    const [system] = buildDirectorMessages({}, { type, profileGuidance: ['gemini', 'claude'] });
+    assert.doesNotMatch(system.content, /角色塑造红线|主动性与情感表达/);
+  }
+});
+
 test('event intent composes multi-card stages, category tones, and anti-conspiracy rules', () => {
   const [system] = buildDirectorMessages(
     { cast: { mode: 'multi', members: Array.from({ length: 6 }, (_, index) => ({ id: `c${index}` })) }, genre: { mode: 'fantasy' } },
@@ -80,6 +109,17 @@ test('event intent composes multi-card stages, category tones, and anti-conspira
   assert.match(system.content, /不得预设 user.*行动/s);
   assert.match(system.content, /已回收.*未注入.*使用中.*待使用/s);
   assert.match(system.content, /connectedStepTitle/);
+});
+
+test('event prompt uses only current sources and contains no crime-story example anchors', () => {
+  const [system] = buildDirectorMessages(
+    { cast: { mode: 'multi' }, latestUserMessage: '安排一次周末聚餐' },
+    { type: 'plan-event', castMode: 'multi', mainCategory: 'daily' },
+  );
+  assert.doesNotMatch(system.content, /警局|刑侦|水箱|法医|凶手|死者/);
+  assert.match(system.content, /只能.*当前角色卡.*所选世界书.*当前聊天上下文.*本次事件想法/s);
+  assert.match(system.content, /结构示例.*不得.*复用.*剧情内容/s);
+  assert.match(system.content, /不得引入.*无关.*旧剧本/s);
 });
 
 test('single-card event stages also require non-empty split steps', () => {

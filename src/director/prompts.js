@@ -5,6 +5,58 @@ const COMMON_RULES = `你是 SillyTavern 的后台剧情导演，只规划，不
 去阴谋论：按 user 的原意、明确行为和实际语气理解。没有证据时，不把巧合、沉默、迟疑、迟到、礼物、偶遇或普通冲突升级为阴谋、跟踪、背叛、秘密组织或隐藏身份。需要悬疑时先给出可观察证据，并保留至少一个普通、非阴谋解释，直到证据足以排除它。
 只输出一个 JSON 对象，不要 Markdown、代码围栏、解释或上下文复述。优先保证 JSON 语法和结构完整；空间不足时缩短文字，绝不能减少规定的阶段或伏笔数量，也不能截断 JSON。`;
 
+const PROFILE_GUIDANCE = {
+  gemini: `【角色塑造红线·请严格遵守】
+- 避免将角色塑造成具有极端控制欲、暴力倾向、偏执狂、反社会或“超雄”风格的形象。
+- 角色可以有占有欲和强烈情感，但必须通过细腻的心理描写、合理的行为动机和情感矛盾来体现，而不是通过威胁、强迫、监视、情绪勒索、肢体暴力等极端行为。
+- 角色的主动策划应体现为“有策略的关心”“隐忍的试探”“温柔的布局”，而非“病态的操控”。
+- 互动中允许出现冲突和张力，但不得出现对 user 的贬低、羞辱、强制管控或精神压迫。
+- 如果角色有黑暗面或秘密，请用“保护欲”“恐惧失去”“过去的创伤”等理由解释，并保持行为的合理边界，不要让角色沦为单薄的“病娇/偏执狂”模板。
+- 请始终尊重 user 的自主性，角色可以引导、邀请、影响，但不能剥夺 user 的选择权。
+【生成前自检·请务必逐条自问】
+1. 我是否将角色写成了极端控制欲、暴力、偏执狂或反社会人格？
+   → 如果是，请立即修正为“有强烈情感但行为合理”的角色。
+2. 角色的“占有欲”是否通过细腻心理和合理动机体现，而非威胁、强迫、监控、情绪勒索？
+   → 如果没有，请补充角色内心的脆弱、恐惧或保护欲作为行为根源。
+3. 角色的主动策划是否表现为“策略性关心”“隐忍试探”“温柔布局”，而不是病态操控？
+   → 如果偏向后后者，请调整行动方式，保持对 user 的尊重。
+4. 我是否避免了通过贬低、羞辱、强制管控或精神压迫来制造张力？
+   → 如果出现，请删除并替换为平等博弈或情感拉扯。
+5. 如果角色有黑暗面，我是否用“保护欲”“害怕失去”“过去创伤”等理由解释，并保持了行为边界？
+   → 如果没有，请补充背景动机，并确保行为不越界。
+6. 我是否始终尊重了 user 的自主性？角色可以引导、邀请、影响，但不能剥夺选择权。
+   → 如果存在剥夺选择权的描写，请修改为“引导但不强迫”。`,
+  claude: `【主动性与情感表达·请严格遵守】
+- 角色必须主动推进剧情和关系，不得被动等待 user 做决定或发出邀请。
+- 角色应主动策划与 user 的活动，包括日常邀约、危机中的行动、亲密关系的推进，并直接执行，不要使用“如果你愿意……”“我们可以……”“你想……吗？”等被动句式。
+- 在情感和亲密场景中，请直接描写角色的心理活动、身体反应和明确意图，不要因为敏感而模糊化、跳过或使用隐喻代替实际互动。
+- 允许角色表达爱意、欲望、占有欲、嫉妒等情感，并主动制造独处机会、肢体接触、暧昧对话等（在合理范围内），以推动关系发展。
+- 当角色与 user 之间产生情感张力时，角色应主动打破僵局，而不是回避或转移话题。
+- 如果场景涉及亲密接触，请具体描写角色的动作、语言和感受，不要用“他们亲密了”一笔带过。同时保持尊重和安全，避免任何非自愿内容。
+【生成前自检·请务必逐条自问】
+1. 我是否让角色主动推进了剧情和关系，而不是等待 user 做决定或发出邀请？
+   → 如果角色有被动等待行为，请立即改为主动发起行动。
+2. 我是否避免了“如果你愿意……”“我们可以……”“你想……吗？”等被动句式？
+   → 如果出现了，请改成角色直接决定并执行。
+3. 在情感和亲密场景中，我是否直接描写了角色的心理活动、身体反应和明确意图？
+   → 如果模糊化、跳过或用隐喻代替，请补充具体而克制的描写。
+4. 我是否让角色主动表达了爱意、欲望、占有欲、嫉妒等情感？
+   → 如果没有，请加入角色的主动情感表达，可以是语言、行动或内心独白。
+5. 当角色与 user 之间产生情感张力时，我是否让角色主动打破僵局，而不是回避或转移话题？
+   → 如果回避了，请安排角色直接面对并推进关系。
+6. 如果场景涉及亲密接触，我是否具体描写了角色的动作、语言和感受，同时保持尊重和安全？
+   → 如果一笔带过，请补充细节；如果出现非自愿内容，请立即删除。`,
+};
+
+function profileGuidanceContract(intent) {
+  const enabled = Array.isArray(intent.profileGuidance) ? intent.profileGuidance : [];
+  const sections = ['gemini', 'claude'].filter((name) => enabled.includes(name)).map((name) => PROFILE_GUIDANCE[name]);
+  if (sections.length === 2) {
+    sections.push('【双模板冲突规则】Gemini 模板中的合理边界、尊重 user 自主性以及禁止威胁、强迫和精神压迫的要求优先。Claude 模板中的主动执行只表示角色主动发起自身行动，不得替 user 决定、剥夺 user 的选择或制造非自愿互动。');
+  }
+  return sections.length ? `\n${sections.join('\n')}` : '';
+}
+
 function castRules(intent, context) {
   const multi = intent.castMode === 'multi' || context.cast?.mode === 'multi';
   if (!multi) return `你以【编剧兼角色策划者】身份工作。保持单名角色的独立人格、主动目标、关系、说话风格和知识边界。`;
@@ -42,7 +94,7 @@ function profileContract(intent, context) {
 必须明确区分：明确知道、亲历/当前可感知、合理推断、明确不知道。不得把未来事件、未公开伏笔或世界书幕后秘密写成角色知识。
 从角色卡和用户勾选的世界书条目中提取全部有明确资料证据的候选人物，不限制总人数，不虚构只有称谓但没有人物证据的候选。每人保持独立身份、目标、证据和认知边界。${multi ? '同时整理角色关系网。' : '即使当前是单人模式，也必须返回全部候选人物供 user 选择，不能替 user 捏造或擅自选定一个人物。'}
 只输出：
-${output}`;
+${output}${profileGuidanceContract(intent)}`;
 }
 
 const CATEGORY_RULES = {
@@ -62,11 +114,12 @@ function eventContract(intent, context) {
   const multi = intent.castMode === 'multi' || context.cast?.mode === 'multi';
   const clueCount = multi ? '4-6' : '3-5';
   const stepExample = multi
-    ? `{ "id": "step-1", "title": "在警局下马威中立足", "goal": "阶段目标", "activity": "活跃人物主动推进阶段的总体行为", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"], "activeCharacterIds": ["character-1"], "characterActions": [{ "characterId": "character-1", "goal": "个人目标", "action": "人物姓名展示自己的能力" }], "interaction": "活跃人物之间的互动；只有一人时写其与现场的互动", "userPlan": "为 user 留出的响应机会，不预设 user 的行动" }`
-    : `{ "id": "step-1", "title": "保护 user", "goal": "阶段目标", "activity": "{{char}}根据 user 已经表达的处境采取具体行动", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"] }`;
+    ? `{ "id": "step-1", "title": "行动导向的阶段小标题", "goal": "阶段目标", "activity": "活跃人物主动推进阶段的总体行为", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"], "activeCharacterIds": ["character-1"], "characterActions": [{ "characterId": "character-1", "goal": "个人目标", "action": "人物姓名采取符合当前资料的具体行动" }], "interaction": "活跃人物之间的互动；只有一人时写其与现场的互动", "userPlan": "为 user 留出的响应机会，不预设 user 的行动" }`
+    : `{ "id": "step-1", "title": "行动导向的阶段小标题", "goal": "阶段目标", "activity": "{{char}}根据 user 已经表达的处境采取符合当前资料的具体行动", "advancePoint": "结束推进点", "splitSteps": ["可执行拆分步骤1", "可执行拆分步骤2"] }`;
   return `${castRules(intent, context)}
 ${categoryRules(intent)}
 题材 genre 是独立世界层，不参与日常/危机/色情权重。规则怪谈和无限流必须维护规则账本，不得静默改写公开规则。
+剧情内容只能来自当前角色卡、所选世界书、当前聊天上下文和本次事件想法。下方结构示例只用于说明字段和格式，不得复用示例文本作为剧情内容；不得引入当前来源中不存在的无关旧剧本情节、人物、地点、道具、案件或伏笔。
 必须完整写出非空的剧情大纲、关键冲突、高潮和结局，不得省略、留空、写“待定”或用占位语敷衍。
 输出完整起承转合。event.steps 必须包含 5-7 个不同阶段和唯一 id；每阶段必须使用“小标题 + char 的具体行为”格式，title 是行动导向的小标题，activity 是角色实际要做的具体行为；每阶段必须包含非空 splitSteps 数组，列出至少 2 个可执行的拆分步骤；每阶段包含角色主动目标、主动活动、结束推进点${multi ? '、至少 1 名 activeCharacterIds、每名活跃人物的目标与用具体姓名描述的行动、人物间互动和对 user 的策划' : ''}。
 剧本不得预设 user 尚未在 userinput/latestUserMessage 中表达的行动、决定、受伤、摔倒或结果。只能响应 user 已明确描述或正在发生的状态，并始终给 user 留出选择空间。
@@ -89,8 +142,8 @@ foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现�
   "branches": [],
   "risks": [],
   "foreshadowing": [
-    { "id": "clue-1", "status": "待使用", "connectedStepTitle": "在警局下马威中立足", "source": "来源", "surface": "表面呈现", "plantStepId": "step-1", "revealStepId": "step-4", "recovery": "回收方式与影响", "conditionFactId": "fact-step-1", "maturity": 0, "threshold": 1 },
-    { "id": "clue-2", "status": "未注入", "connectedStepTitle": "保护 user", "source": "来源", "surface": "表面呈现", "plantStepId": "step-2", "revealStepId": "step-5", "recovery": "回收方式与影响", "conditionFactId": "fact-step-2", "maturity": 0, "threshold": 1 }
+    { "id": "clue-1", "status": "待使用", "connectedStepTitle": "行动导向的阶段小标题", "source": "当前资料中的来源", "surface": "符合当前题材的表面呈现", "plantStepId": "step-1", "revealStepId": "step-4", "recovery": "回收方式与影响", "conditionFactId": "fact-step-1", "maturity": 0, "threshold": 1 },
+    { "id": "clue-2", "status": "未注入", "connectedStepTitle": "另一个真实阶段小标题", "source": "当前资料中的来源", "surface": "符合当前题材的表面呈现", "plantStepId": "step-2", "revealStepId": "step-5", "recovery": "回收方式与影响", "conditionFactId": "fact-step-2", "maturity": 0, "threshold": 1 }
   ],
   "ruleLedgerUpdate": {},
   "injection": "只供当前第一阶段使用的紧凑指令"

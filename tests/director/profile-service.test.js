@@ -14,13 +14,34 @@ test('profile service sends card description and selected world entries to AI', 
     card: { name: 'A', description: 'gentle', mes_example: 'hello' },
     cast: { mode: 'multi', members: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], relations: [{ from: 'a', to: 'b', type: 'rivals' }] },
     entries: [{ bookName: 'B', name: 'Rule', content: 'secret' }],
+    profileGuidance: { gemini: true, claude: false },
     connection: { mode: 'independent', endpoint: 'https://api.test', model: 'director' },
   });
   assert.match(JSON.stringify(request.context), /gentle/);
   assert.match(JSON.stringify(request.context), /secret/);
   assert.deepEqual(request.context.sourceAuthority, ['worldInfo', 'card', 'context']);
   assert.deepEqual(request.context.cast.members.map((member) => member.id), ['a', 'b']);
+  assert.deepEqual(request.intent.profileGuidance, ['gemini']);
   assert.equal(state.personalityProfile.content, 'A concise profile');
+});
+
+test('changing only profile guidance marks an existing profile stale', async () => {
+  const service = createProfileService({ client: { requestDirector: async () => ({ content: 'profile', citations: [] }) } });
+  const state = { chatKey: 'chat', cast: { mode: 'multi', members: [] }, personalityProfile: { status: 'empty', fingerprint: '', content: '' } };
+  const base = {
+    state,
+    card: { name: 'A', description: 'steady' },
+    cast: state.cast,
+    entries: [],
+    connection: { mode: 'independent', endpoint: 'x', model: 'm' },
+  };
+
+  await service.refreshProfile({ ...base, profileGuidance: { gemini: false, claude: false } });
+  const originalFingerprint = state.personalityProfile.fingerprint;
+  const result = await service.ensureProfile({ ...base, profileGuidance: { gemini: false, claude: true } });
+
+  assert.equal(result.status, 'stale-pending');
+  assert.notEqual(result.activeFingerprint, originalFingerprint);
 });
 
 test('single profile extraction keeps every evidenced candidate available for user selection', async () => {

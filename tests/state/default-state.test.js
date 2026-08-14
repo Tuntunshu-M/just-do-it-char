@@ -19,6 +19,7 @@ test('global settings keep connection secrets outside chat state', () => {
   assert.equal(settings.connection.stream, false);
   assert.equal(settings.context.worldInfoMode, 'all');
   assert.equal(settings.theme.mode, 'night');
+  assert.deepEqual(settings.profileGuidance, { gemini: false, claude: false });
   assert.deepEqual(settings.context.worldInfoBooks, {});
   assert.equal(settings.context.worldInfoSelectionPolicy, 'preserve');
   assert.deepEqual(settings.categories, {
