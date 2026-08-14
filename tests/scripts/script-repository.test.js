@@ -19,10 +19,11 @@ function fixture() {
 }
 
 test('normalizes a plan into a complete draft script', () => {
-  const script = normalizeScript({ title: '雨夜', steps: [{ id: 's1' }] }, { now: '2026-08-13T00:00:00.000Z', id: 'script-1' });
+  const script = normalizeScript({ title: '雨夜', steps: [{ id: 's1', status: 'current' }, { id: 's2' }] }, { now: '2026-08-13T00:00:00.000Z', id: 'script-1', status: 'draft' });
   assert.equal(script.id, 'script-1');
   assert.equal(script.status, 'draft');
   assert.equal(script.currentStepIndex, 0);
+  assert.deepEqual(script.steps.map((step) => step.status), ['pending', 'pending']);
   assert.deepEqual(script.foreshadowing, []);
   assert.equal(script.createdAt, script.updatedAt);
 });
@@ -57,4 +58,17 @@ test('migrates a legacy active event exactly once without dropping planning data
   assert.deepEqual(state.scripts[0].facts, [{ id: 'fact' }]);
   assert.deepEqual(state.scripts[0].revisions, [{ id: 'r1' }]);
   assert.equal(state.activeScriptId, 'legacy');
+});
+
+test('repository migration does not activate a legacy event without running status', async () => {
+  const { states, repository } = fixture();
+  const state = states.get('a');
+  state.activeEvent = { id: 'legacy-idle', title: '旧策划', premise: '开端', steps: [{ id: 's1' }] };
+
+  await repository.migrateLegacyEvent('a', 'f');
+
+  assert.equal(state.scripts[0].status, 'stopped');
+  assert.equal(state.selectedScriptId, 'legacy-idle');
+  assert.equal(state.activeScriptId, null);
+  assert.equal(state.activeEvent, null);
 });

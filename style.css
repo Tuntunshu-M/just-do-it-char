@@ -236,12 +236,18 @@
 #st-proactive-director .stpd-script-list-item > * { min-width: 0; overflow-wrap: anywhere; }
 #st-proactive-director .stpd-script-list-item.is-selected { border-color: var(--stpd-accent); box-shadow: inset 3px 0 0 var(--stpd-accent); }
 #st-proactive-director .stpd-script-status { color: var(--stpd-muted); font-size: 12px; }
+#st-proactive-director .stpd-script-time { color: var(--stpd-muted); font-size: 12px; }
+#st-proactive-director .stpd-script-stage-summary { color: var(--stpd-text); font-size: 12px; overflow-wrap: anywhere; }
 #st-proactive-director .stpd-script-detail { display: grid; align-content: start; gap: 10px; padding-right: 4px; }
 #st-proactive-director .stpd-script-section { display: grid; gap: 6px; min-width: 0; padding-top: 8px; border-top: 1px solid var(--stpd-border); }
 #st-proactive-director .stpd-script-section:first-child { padding-top: 0; border-top: 0; }
 #st-proactive-director .stpd-script-items { display: grid; gap: 6px; margin: 0; padding-left: 22px; }
 #st-proactive-director .stpd-script-items li,
 #st-proactive-director .stpd-script-detail p { overflow-wrap: anywhere; }
+#st-proactive-director .stpd-script-field { display: grid; grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr); gap: 6px; min-width: 0; }
+#st-proactive-director .stpd-script-stage,
+#st-proactive-director .stpd-script-clue { display: grid; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--stpd-border); border-radius: 4px; }
+#st-proactive-director .stpd-revision-summary { color: var(--stpd-muted); font-size: 12px; overflow-wrap: anywhere; }
 #st-proactive-director .stpd-cast-mode {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -262,6 +268,12 @@
 }
 #st-proactive-director .stpd-cast-member > * { min-width: 0; }
 #st-proactive-director .stpd-cast-member strong { overflow-wrap: anywhere; }
+#st-proactive-director .stpd-cast-dialog-overlay { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; min-width: 0; padding: 16px; background: rgb(0 0 0 / 58%); }
+#st-proactive-director .stpd-cast-dialog { display: grid; gap: 10px; width: min(520px, 100%); max-height: min(720px, calc(100dvh - 64px)); padding: 14px; overflow: auto; overscroll-behavior: contain; color: var(--stpd-text); background: var(--stpd-bg); border: 1px solid var(--stpd-border); border-radius: 6px; box-shadow: 0 18px 48px rgb(0 0 0 / 38%); }
+#st-proactive-director .stpd-cast-dialog-header { position: sticky; top: -14px; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; margin: -14px -14px 0; padding: 12px 14px; background: var(--stpd-bg); border-bottom: 1px solid var(--stpd-border); }
+#st-proactive-director .stpd-cast-dialog-close { inline-size: 36px; block-size: 36px; padding: 0; color: var(--stpd-text); background: transparent; border: 1px solid transparent; border-radius: 4px; font-size: 24px; line-height: 1; cursor: pointer; }
+#st-proactive-director .stpd-cast-dialog-close:hover { border-color: var(--stpd-accent); }
+#st-proactive-director .stpd-cast-dialog-actions { position: sticky; bottom: -14px; justify-content: flex-end; margin: 0 -14px -14px; padding: 10px 14px; background: var(--stpd-bg); border-top: 1px solid var(--stpd-border); }
 #st-proactive-director button.stpd-compact { min-height: 30px; padding: 4px 8px; font-size: 12px; color: var(--stpd-button-text); background: var(--stpd-button-bg); border: 1px solid var(--stpd-border); border-radius: 4px; cursor: pointer; }
 #st-proactive-director button.stpd-compact:hover { border-color: var(--stpd-accent); }
 #st-proactive-director button.stpd-compact:disabled { cursor: wait; opacity: 0.7; }
@@ -346,6 +358,8 @@
   #st-proactive-director .stpd-script-list { max-height: 150px; }
   #st-proactive-director .stpd-script-detail { max-height: none; overflow-y: visible; padding-right: 0; }
   #st-proactive-director .stpd-cast-member { grid-template-columns: minmax(0, 1fr) auto; }
+  #st-proactive-director .stpd-cast-dialog-overlay { padding: 8px; }
+  #st-proactive-director .stpd-cast-dialog { max-height: calc(100dvh - 32px); }
   #st-proactive-director .stpd-diagnostic-summary { grid-template-columns: 1fr; }
   #st-proactive-director .stpd-diagnostic-records { max-height: 220px; }
 }

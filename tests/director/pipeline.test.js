@@ -79,8 +79,10 @@ test('a missing event does not inject anything', async () => {
 });
 
 test('event planning waits for the profile and exposes progress', async () => {
-  const { pipeline, order } = harness({ state: { chatKey: 'c', status: 'idle', personalityProfile: { status: 'generating' } } });
+  const { pipeline, order, state } = harness({ state: { chatKey: 'c', status: 'idle', personalityProfile: { status: 'generating' } } });
   const result = await pipeline.manualCreate('x');
   assert.equal(result.reason, '导演还在看人设');
   assert.deepEqual(order, ['notice:导演还在看人设']);
+  assert.equal(state.generation.phase, 'idle');
+  assert.equal(state.generation.error, '导演还在看人设');
 });

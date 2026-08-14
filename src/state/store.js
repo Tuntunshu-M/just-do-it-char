@@ -8,6 +8,11 @@ import {
 
 const CHAT_STATE_KEY = `${EXTENSION_KEY}_chats`;
 
+function restoreObject(target, snapshot) {
+  for (const key of Object.keys(target ?? {})) delete target[key];
+  Object.assign(target, cloneValue(snapshot));
+}
+
 function getContainers(adapter) {
   const host = adapter.getContext?.() ?? {};
   host.extensionSettings ??= {};
@@ -29,8 +34,17 @@ export function createStore(adapter) {
 
   async function saveGlobal(value) {
     const { settings } = getContainers(adapter);
+    const existed = Object.hasOwn(settings, EXTENSION_KEY);
+    const previous = existed ? cloneValue(settings[EXTENSION_KEY]) : undefined;
     settings[EXTENSION_KEY] = migrateGlobalSettings(cloneValue(value));
-    await adapter.saveSettings?.();
+    try {
+      await adapter.saveSettings?.();
+    } catch (error) {
+      if (existed) settings[EXTENSION_KEY] = previous;
+      else delete settings[EXTENSION_KEY];
+      restoreObject(value, migrateGlobalSettings(previous));
+      throw error;
+    }
     return cloneValue(settings[EXTENSION_KEY]);
   }
 
@@ -48,9 +62,18 @@ export function createStore(adapter) {
     if (!value?.chatKey) throw new Error('Cannot save chat state without a chat key');
     const { chats } = getContainers(adapter);
     const state = migrateState(cloneValue(value));
+    const existed = Object.hasOwn(chats, state.chatKey);
+    const previous = existed ? cloneValue(chats[state.chatKey]) : createDirectorState(state.chatKey, state.characterFingerprint);
     state.updatedAt = new Date().toISOString();
     chats[state.chatKey] = state;
-    await adapter.saveChatState?.();
+    try {
+      await adapter.saveChatState?.();
+    } catch (error) {
+      if (existed) chats[state.chatKey] = previous;
+      else delete chats[state.chatKey];
+      restoreObject(value, migrateState(previous));
+      throw error;
+    }
     return cloneValue(state);
   }
 

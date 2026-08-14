@@ -1,5 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile, readdir } from 'node:fs/promises';
+
+async function productionSources(directory = new URL('../../src/', import.meta.url)) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const sources = [];
+  for (const entry of entries) {
+    const url = new URL(entry.name + (entry.isDirectory() ? '/' : ''), directory);
+    if (entry.isDirectory()) sources.push(...await productionSources(url));
+    else if (entry.name.endsWith('.js')) sources.push([url.pathname, await readFile(url, 'utf8')]);
+  }
+  return sources;
+}
 
 test('extension entry exports lifecycle and keeps host access in adapter', async () => {
   const entry = await import('../../index.js');
@@ -11,6 +23,11 @@ test('extension entry exports lifecycle and keeps host access in adapter', async
     const source = await fs.readFile(new URL(`../../src/director/${file}`, import.meta.url), 'utf8');
     assert.equal(source.includes('SillyTavern.getContext'), false, `${file} bypasses host adapter`);
   }
+});
+
+test('script revision restore is wired to the script detail service name', async () => {
+  const source = await readFile(new URL('../../index.js', import.meta.url), 'utf8');
+  assert.match(source, /restoreScriptRevision:\s*async\s*\(scriptId,\s*revisionId\)/);
 });
 
 test('extension reloads chat state and clears the world-book cache after chat changes', async () => {
@@ -36,6 +53,29 @@ test('multi mode switch generates candidates from selected sources while edits o
   assert.match(source, /loadSelectedWorldBooks\(\)/);
   assert.match(source, /markProfileFromCastChange/);
   assert.doesNotMatch(source, /connection:\s*\{[^}]*mode:\s*'main'/s);
+});
+
+test('profile generation status is persisted before the secondary request completes', async () => {
+  const source = await readFile(new URL('../../index.js', import.meta.url), 'utf8');
+  assert.match(source, /onStatus:\s*async\s*\(nextState\)\s*=>\s*\{\s*await store\.saveChat\(nextState\)/s);
+  assert.match(source, /if \(nextState\.chatKey === chatKey\)\s*\{\s*state = nextState;\s*rerender\(\)/s);
+});
+
+test('manual event completion reloads persisted pipeline feedback into the console', async () => {
+  const source = await readFile(new URL('../../index.js', import.meta.url), 'utf8');
+  assert.match(source, /onManualEvent:\s*async\s*\(text,\s*expand\)\s*=>\s*\{\s*const result = await pipeline\.manualCreate\(text, expand\);\s*refresh\(\);\s*return result;/s);
+});
+
+test('production modules have no host world-info mutation path', async () => {
+  const sources = [
+    ['/index.js', await readFile(new URL('../../index.js', import.meta.url), 'utf8')],
+    ...await productionSources(),
+  ];
+  const forbiddenHostMutations = /\b(?:create|update|delete|remove|set|write|flush)World(?:Info|Entry|Book)\b/i;
+
+  for (const [file, source] of sources) {
+    assert.doesNotMatch(source, forbiddenHostMutations, `${file} can mutate host world-info data`);
+  }
 });
 
 test('event outcomes produce immediate guidance for failed and unsuccessful attempts', async () => {

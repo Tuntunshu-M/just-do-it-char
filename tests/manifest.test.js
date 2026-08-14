@@ -21,5 +21,5 @@ test('manifest advertises the script library and multi-cast release', async () =
   const raw = await readFile(new URL('../manifest.json', import.meta.url), 'utf8');
   const manifest = JSON.parse(raw);
 
-  assert.equal(manifest.version, '0.8.0');
+  assert.equal(manifest.version, '0.8.1');
 });

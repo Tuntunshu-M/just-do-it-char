@@ -1,6 +1,7 @@
 const FEEDBACK = new Set(['accept', 'reject', 'hesitate', 'redirect', 'neutral', 'stop']);
 const CATEGORIES = new Set(['daily', 'crisis', 'erotic']);
 const REACTION_DECISIONS = new Set(['advance', 'revise', 'neutral', 'stop']);
+const FORESHADOWING_STATUSES = new Set(['已回收', '未注入', '使用中', '待使用']);
 
 function requireType(condition, message) {
   if (!condition) throw new TypeError(`Invalid director result: ${message}`);
@@ -34,16 +35,29 @@ export function validateDirectorResult(value, intent = {}) {
       const stepIds = value.event.steps.map((step) => step?.id);
       requireType(stepIds.every((id) => typeof id === 'string' && id), 'event step id is required');
       requireType(new Set(stepIds).size === stepIds.length, 'event step ids must be unique');
+      for (const step of value.event.steps) {
+        requireType(typeof step.title === 'string' && step.title.trim(), 'event step title is required');
+        requireType(typeof step.activity === 'string' && step.activity.trim(), 'event step character activity is required');
+        requireType(Array.isArray(step.splitSteps) && step.splitSteps.length > 0, 'event step splitSteps are required');
+      }
       if (intent.mainCategory) requireType(value.event.category === intent.mainCategory, 'event category must match selected main category');
       if (intent.castMode === 'multi') {
         const castIds = new Set(intent.castCharacterIds ?? []);
         requireType(castIds.size > 0, 'multi cast ids are required');
         for (const step of value.event.steps) {
           requireType(Array.isArray(step.activeCharacterIds), 'multi step activeCharacterIds are required');
-          requireType(step.activeCharacterIds.length >= 2 && step.activeCharacterIds.length <= 4, 'multi step must activate 2 to 4 characters');
+          requireType(step.activeCharacterIds.length >= 1, 'multi step must activate at least one character');
           requireType(new Set(step.activeCharacterIds).size === step.activeCharacterIds.length, 'multi step character ids must be unique');
           requireType(step.activeCharacterIds.every((id) => castIds.has(id)), 'multi step character id is unknown');
           requireType(typeof step.interaction === 'string' && step.interaction.trim(), 'multi step interaction is required');
+          requireType(typeof step.userPlan === 'string' && step.userPlan.trim(), 'multi step user plan is required');
+          requireType(Array.isArray(step.characterActions), 'multi step characterActions are required');
+          const actionIds = new Set(step.characterActions.map((item) => item?.characterId));
+          requireType(step.activeCharacterIds.every((id) => actionIds.has(id)), 'multi step character action is required for every active character');
+          for (const action of step.characterActions) {
+            requireType(typeof action?.goal === 'string' && action.goal.trim(), 'multi step character goal is required');
+            requireType(typeof action?.action === 'string' && action.action.trim(), 'multi step character action is required');
+          }
         }
         requireType(new Set(value.event.steps.flatMap((step) => step.activeCharacterIds)).size >= Math.min(2, castIds.size), 'multi cast must rotate characters');
       }
@@ -61,12 +75,15 @@ export function validateDirectorResult(value, intent = {}) {
   }
   if (value.event !== null && intent.type === 'plan-event') {
     const [minimum, maximum] = intent.castMode === 'multi' ? [4, 6] : [3, 5];
+    const stepTitles = new Set(value.event.steps.map((step) => step.title.trim()));
     requireType(value.foreshadowing.length >= minimum && value.foreshadowing.length <= maximum, `foreshadowing must contain ${minimum} to ${maximum} items`);
     for (const clue of value.foreshadowing) {
       requireType(typeof clue?.id === 'string' && clue.id, 'foreshadowing id is required');
       requireType(typeof clue?.conditionFactId === 'string' && clue.conditionFactId, 'foreshadowing conditionFactId is required');
       requireType(Number.isFinite(Number(clue.maturity)), 'foreshadowing maturity is required');
       requireType(Number.isFinite(Number(clue.threshold)), 'foreshadowing threshold is required');
+      requireType(FORESHADOWING_STATUSES.has(clue.status), 'foreshadowing status is unknown');
+      requireType(typeof clue.connectedStepTitle === 'string' && stepTitles.has(clue.connectedStepTitle.trim()), 'foreshadowing connected stage title is unknown');
     }
   }
   if (value.leadChange != null) {
@@ -109,6 +126,9 @@ export function validateProfileResult(value, intent = {}) {
       requireType(typeof member?.id === 'string' && member.id, 'profile member id is required');
       requireType(typeof member?.name === 'string' && member.name, 'profile member name is required');
       requireType(typeof member?.knowledgeBoundary === 'string', 'profile member knowledgeBoundary is required');
+      for (const field of ['personality', 'background', 'relationship', 'attitude', 'goal', 'speechStyle', 'activeApproach']) {
+        requireType(typeof member?.[field] === 'string' && member[field].trim(), `profile member ${field} is required`);
+      }
     }
   }
   return value;

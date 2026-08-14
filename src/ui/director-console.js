@@ -22,6 +22,30 @@ const TABS = [
 
 const SETTINGS_TABS = [['connection', '连接'], ['diagnostics', '检查'], ['appearance', '外观']];
 
+const REQUEST_PHASE_LABELS = {
+  collecting: '采集中',
+  generating: '生成中',
+  streaming: '流式生成中',
+  injecting: '注入中',
+  policy: '规则检查中',
+  commit: '保存中',
+};
+
+export function directorStatus(state = {}) {
+  const generation = state.generation ?? {};
+  if (!generation.finishedAt && REQUEST_PHASE_LABELS[generation.phase]) {
+    return { phase: generation.phase, label: REQUEST_PHASE_LABELS[generation.phase] };
+  }
+  if (state.personalityProfile?.status === 'generating') {
+    return { phase: 'generating', label: '侧写生成中' };
+  }
+  const activeScript = state.scripts?.find((script) => script.id === state.activeScriptId) ?? state.activeEvent;
+  if (activeScript && ['running', 'paused'].includes(activeScript.status)) {
+    return { phase: 'active', label: '启用中' };
+  }
+  return { phase: 'idle', label: '待机中' };
+}
+
 export function createDirectorConsole({ root, services }) {
   let active = 'event';
   let settingsOpen = false;
@@ -58,12 +82,11 @@ export function createDirectorConsole({ root, services }) {
     const overlay = el(doc, 'div', { class: 'stpd-overlay', role: 'presentation' });
     const modal = el(doc, 'section', { class: 'stpd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '导演时间' });
     const header = el(doc, 'header', { class: 'stpd-header stpd-row' });
-    const phase = state.generation?.phase ?? state.status;
-    const phaseLabels = { idle: '待机', collecting: '采集中', generating: '生成中', streaming: '流式生成中', injecting: '注入中', completed: '已完成', failed: '失败' };
+    const status = directorStatus(state);
     const titleGroup = el(doc, 'div', { class: 'stpd-title-group' });
     titleGroup.append(el(doc, 'strong', { class: 'stpd-title' }, settingsOpen ? '设置' : '导演时间'));
     if (!settingsOpen) titleGroup.append(createThemeToggle({ doc, settings, services, saveSettings, rerender: render }));
-    header.append(titleGroup, el(doc, 'span', { class: `stpd-status stpd-status-${phase}` }, phaseLabels[phase] ?? '待机'));
+    header.append(titleGroup, el(doc, 'span', { class: `stpd-status stpd-status-${status.phase}` }, status.label));
     const settingsButton = el(doc, 'button', { type: 'button', class: 'stpd-settings', 'aria-label': '打开设置', title: '设置' });
     settingsButton.append(el(doc, 'span', { class: 'fa-solid fa-gear', 'aria-hidden': 'true' }));
     settingsButton.onclick = () => { settingsOpen = true; render(); };

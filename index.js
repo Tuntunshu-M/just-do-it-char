@@ -10,7 +10,7 @@ import { createScheduler } from './src/director/scheduler.js';
 import { createCssTemplate, createThemeManager } from './src/theme/theme-manager.js';
 import { applyImport, exportSnapshot, previewImport, undoLastImport } from './src/snapshots/snapshot-manager.js';
 import { createDirectorState } from './src/state/default-state.js';
-import { addCastMember, correctCast, lockCast, removeCastMember, setCastMode, setLeadMember, updateCastMember } from './src/cast/cast-manager.js';
+import { addCastMember, correctCast, lockCast, removeCastMember, setCastMode, setLeadMember, setSingleSelection, updateCastMember } from './src/cast/cast-manager.js';
 import { showSnapshotImportDialog } from './src/ui/dialogs/snapshot-import.js';
 import { selectedWorldEntries } from './src/world-info/selection.js';
 import { runDiagnostics } from './src/diagnostics/inspector.js';
@@ -125,7 +125,17 @@ export function initializeExtension() {
   } });
   theme.load(settings.theme);
   const directorClient = createDirectorClient({ adapter: hostAdapter });
-  const profileService = createProfileService({ client: directorClient });
+  const profileService = createProfileService({
+    client: directorClient,
+    getCurrentChatKey: () => hostAdapter.getCurrentChatKey(),
+    onStatus: async (nextState) => {
+      await store.saveChat(nextState);
+      if (nextState.chatKey === chatKey) {
+        state = nextState;
+        rerender();
+      }
+    },
+  });
   let rerender = () => {};
   const notice = (message) => hostAdapter.showSystemMessage?.(message);
   const pipeline = createDirectorPipeline({
@@ -170,7 +180,10 @@ export function initializeExtension() {
   const worldInfoNames = () => hostAdapter.getWorldInfoNames();
   const loadWorldInfoBook = async (name) => {
     if (!worldBookCache.has(name)) {
-      const pending = hostAdapter.loadWorldInfoBook(name).catch((error) => {
+      const pending = hostAdapter.loadWorldInfoBook(name).then((book) => {
+        worldBookCache.set(name, book);
+        return book;
+      }).catch((error) => {
         worldBookCache.delete(name);
         throw error;
       });
@@ -181,8 +194,7 @@ export function initializeExtension() {
   const cachedSelectedEntries = () => {
     const books = [];
     for (const [name, value] of worldBookCache) {
-      if (value && typeof value.then !== 'function') books.push(value);
-      else if (value?.name === name) books.push(value);
+      if (value && typeof value.then !== 'function' && value.name === name) books.push(value);
     }
     return selectedWorldEntries(books, settings.context.worldInfoBooks ?? {});
   };
@@ -288,7 +300,11 @@ export function initializeExtension() {
         state.generation = { ...state.generation, phase: 'idle', finishedAt: new Date().toISOString() };
         refresh();
       },
-      onManualEvent: (text, expand) => pipeline.manualCreate(text, expand),
+      onManualEvent: async (text, expand) => {
+        const result = await pipeline.manualCreate(text, expand);
+        refresh();
+        return result;
+      },
       selectScript: async (scriptId) => { await repository.select(chatKey, state.characterFingerprint, scriptId); refresh(); },
       performScript: async (scriptId) => {
         await scriptRuntime.perform(chatKey, state.characterFingerprint, scriptId, {
@@ -303,7 +319,8 @@ export function initializeExtension() {
       pauseEvent: async () => { await engine.pause(chatKey, state.characterFingerprint); refresh(); },
       resumeEvent: async () => { await engine.resume(chatKey, state.characterFingerprint, { source: 'manual' }); refresh(); },
       rerollEvent: () => pipeline.regeneratePlan(),
-      restoreRevision: async (revisionId) => {
+      restoreScriptRevision: async (scriptId, revisionId) => {
+        if (state.activeScriptId !== scriptId) throw new Error('只能恢复当前开演剧本的修订');
         await engine.restoreRevision(chatKey, state.characterFingerprint, revisionId);
         refresh();
       },
@@ -313,13 +330,21 @@ export function initializeExtension() {
       setCastMode: async (mode) => {
         state.cast = setCastMode(state.cast, mode);
         await store.saveChat(state);
-        if (mode === 'multi' && !state.cast.multiProfileInitialized) {
+        if (mode === 'multi') {
           const entries = await loadSelectedWorldBooks();
-          const result = await profileService.switchModeAndEnsureProfile({ ...profileOptions(), entries });
+          const request = profileService.switchModeAndEnsureProfile({ ...profileOptions(), entries });
+          refresh();
+          const result = await request;
           await store.saveChat(state);
           if (result?.error === '还没连接副 API') notice('还没连接副 API');
         } else await markProfileFromCastChange();
         refresh();
+      },
+      setSingleCastMember: async (id) => {
+        const member = state.cast.multiMembers?.find((item) => item.id === id) ?? state.cast.members?.find((item) => item.id === id);
+        state.cast = setSingleSelection(state.cast, member);
+        await store.saveChat(state);
+        await markProfileFromCastChange();
       },
       addCastMember: async (member) => { state.cast = addCastMember(state.cast, member); await store.saveChat(state); await markProfileFromCastChange(); },
       updateCastMember: async (id, changes) => { state.cast = updateCastMember(state.cast, id, changes); await store.saveChat(state); await markProfileFromCastChange(); },

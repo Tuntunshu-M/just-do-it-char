@@ -52,3 +52,20 @@ test('event page contains generation controls but no script outline or runtime c
   assert.match(text, /创建事件/);
   assert.doesNotMatch(text, /剧情大纲|拆分步骤|暂停事件|编辑大纲|旧事件/);
 });
+
+test('event page keeps a blocked generation reason visible and offers retry', async () => {
+  const doc = createDocument(); const body = doc.createElement('section'); const calls = [];
+  renderEventView({
+    body,
+    state: { generation: { phase: 'idle', error: '导演还在看人设' }, directorNotes: '' },
+    services: { onManualEvent: async (...args) => calls.push(args) },
+    saveState() {},
+  });
+
+  const text = all(body).map((node) => node.textContent).join('|');
+  assert.match(text, /导演还在看人设/);
+  const retry = all(body).find((node) => node.tagName === 'button' && node.textContent === '重新尝试');
+  assert.ok(retry);
+  await retry.onclick();
+  assert.deepEqual(calls, [['', true]]);
+});

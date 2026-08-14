@@ -54,6 +54,24 @@ test('migration converts a legacy active event into one repository script once',
   assert.equal(second.selectedScriptId, 'event-1');
 });
 
+test('migration keeps an unstarted legacy event as selected history without activating it', () => {
+  const migrated = migrateState({
+    schemaVersion: 2,
+    chatKey: 'legacy',
+    activeEvent: {
+      id: 'event-idle', title: '旧策划', premise: '完整大纲', conflict: '冲突', climax: '高潮', ending: '结局',
+      steps: [{ id: 's1' }], foreshadowing: [{ id: 'f1' }], revisions: [{ id: 'r1' }],
+    },
+  });
+
+  assert.equal(migrated.scripts[0].status, 'stopped');
+  assert.equal(migrated.selectedScriptId, 'event-idle');
+  assert.equal(migrated.activeScriptId, null);
+  assert.equal(migrated.activeEvent, null);
+  assert.equal(migrated.scripts[0].conflict, '冲突');
+  assert.deepEqual(migrated.scripts[0].foreshadowing, [{ id: 'f1' }]);
+});
+
 test('migration preserves legacy cast as explicit dual-mode data', () => {
   const multi = migrateState({ cast: { mode: 'multi', members: [{ id: 'b', name: '角色 B' }], leadId: 'b' } });
   assert.equal(multi.cast.mode, 'multi');

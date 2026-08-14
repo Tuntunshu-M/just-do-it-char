@@ -4,6 +4,24 @@ import { mergeRuleLedger } from './rule-ledger.js';
 export function createEventEngine(store) {
   const tx = (chatKey, fingerprint, work) => store.transaction(chatKey, fingerprint, work);
 
+  function activeRecord(state) {
+    return state.scripts?.find((script) => script.id === state.activeScriptId) ?? state.activeEvent ?? null;
+  }
+
+  function syncActiveAlias(state, event) {
+    if (state.activeScriptId) state.activeEvent = event;
+  }
+
+  function finishEvent(state, event) {
+    event.status = 'completed';
+    event.updatedAt = new Date().toISOString();
+    state.status = 'completed';
+    if (state.activeScriptId && event.id === state.activeScriptId) {
+      state.activeScriptId = null;
+      state.activeEvent = null;
+    }
+  }
+
   function normalizeSteps(steps = [], currentStepIndex = 0, completedIds = new Set()) {
     return steps.map((step, index) => ({
       ...cloneValue(step),
@@ -42,7 +60,7 @@ export function createEventEngine(store) {
     };
   }
   function assertFactsImmutable(state, incoming = []) {
-    const occurred = new Map((state.activeEvent?.facts ?? [])
+    const occurred = new Map((activeRecord(state)?.facts ?? [])
       .filter((fact) => typeof fact === 'object' && fact.occurred)
       .map((fact) => [fact.id, fact]));
     for (const fact of incoming) {
@@ -62,7 +80,7 @@ export function createEventEngine(store) {
     }); },
     getEligibleForeshadowing(chatKey, fingerprint) {
       const state = store.loadChat(chatKey);
-      const event = state.activeEvent;
+      const event = activeRecord(state);
       const index = event?.currentStepIndex ?? 0;
       const currentId = event?.steps?.[index]?.id;
       const occurred = new Set((event?.facts ?? []).filter((fact) => fact?.occurred).map((fact) => fact.id));
@@ -76,12 +94,11 @@ export function createEventEngine(store) {
       }).map((clue) => cloneValue(clue));
     },
     applyReaction(chatKey, fingerprint, reaction, retention = 3) { return tx(chatKey, fingerprint, (state) => {
-      const event = state.activeEvent;
+      const event = activeRecord(state);
       if (!event) throw new Error('No active event');
       const decision = reaction?.decision ?? 'neutral';
       if (decision === 'stop') {
-        event.status = 'completed';
-        state.status = 'completed';
+        finishEvent(state, event);
         return state;
       }
       if (decision === 'advance') {
@@ -89,10 +106,12 @@ export function createEventEngine(store) {
         if (current) current.status = 'completed';
         event.currentStepIndex += 1;
         if (event.currentStepIndex >= (event.steps?.length ?? 0)) {
-          event.status = 'completed';
-          state.status = 'completed';
+          finishEvent(state, event);
         } else {
           event.steps[event.currentStepIndex].status = 'current';
+          if (state.activeScriptId) event.status = 'running';
+          event.updatedAt = new Date().toISOString();
+          syncActiveAlias(state, event);
         }
         return state;
       }
@@ -109,13 +128,17 @@ export function createEventEngine(store) {
           ...completed,
           ...normalizeSteps(future, 0, completedIds),
         ];
-        event.status = future.length ? 'awaiting-user' : 'completed';
-        state.status = event.status;
+        if (future.length) {
+          event.status = state.activeScriptId ? 'running' : 'awaiting-user';
+          event.updatedAt = new Date().toISOString();
+          state.status = 'awaiting-user';
+          syncActiveAlias(state, event);
+        } else finishEvent(state, event);
       }
       return state;
     }); },
     restoreRevision(chatKey, fingerprint, revisionId) { return tx(chatKey, fingerprint, (state) => {
-      const event = state.activeEvent;
+      const event = activeRecord(state);
       const revision = event?.revisions?.find((item) => item.id === revisionId);
       if (!event || !revision) throw new Error('Revision not found');
       const completed = (event.steps ?? []).filter((step) => step.status === 'completed');
@@ -126,8 +149,12 @@ export function createEventEngine(store) {
       event.foreshadowing = cloneValue(revision.outline.foreshadowing ?? []);
       event.currentStepIndex = completed.length;
       event.steps = [...completed, ...normalizeSteps(restoredFuture, 0, completedIds)];
-      event.status = restoredFuture.length ? 'awaiting-user' : 'completed';
-      state.status = event.status;
+      if (restoredFuture.length) {
+        event.status = state.activeScriptId ? 'running' : 'awaiting-user';
+        event.updatedAt = new Date().toISOString();
+        state.status = 'awaiting-user';
+        syncActiveAlias(state, event);
+      } else finishEvent(state, event);
       return state;
     }); },
     start(chatKey, fingerprint, event) { return tx(chatKey, fingerprint, (state) => {

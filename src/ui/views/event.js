@@ -9,6 +9,13 @@ export function renderEventView({ body, state, services, saveState }) {
   const create = el(doc, 'button', { type: 'button' }, '创建事件');
   create.onclick = () => showManualEventPreview(body, { idea: idea.value.trim(), expand: expand.checked, onConfirm: () => runAction(() => services.onManualEvent?.(idea.value.trim(), expand.checked), services.notice) });
   body.append(field(doc, '事件想法', idea), field(doc, '让 AI 扩展', expand), create);
+  if (state.generation?.error) {
+    const status = el(doc, 'div', { class: 'stpd-generation-status', role: 'status' });
+    const retry = el(doc, 'button', { type: 'button' }, '重新尝试');
+    retry.onclick = () => runAction(() => services.onManualEvent?.(idea.value.trim(), expand.checked), services.notice);
+    status.append(el(doc, 'p', { class: 'stpd-error' }, state.generation.error), retry);
+    body.append(status);
+  }
   const notes = el(doc, 'textarea', { 'aria-label': '导演指令', rows: '3', placeholder: '告诉导演长期需要遵守的指令' });
   notes.value = state.directorNotes ?? '';
   notes.onchange = () => { state.directorNotes = notes.value.trim(); saveState(); };

@@ -2,6 +2,7 @@ import { el, field, runAction } from '../dom.js';
 import { showCastCorrectionDialog } from '../dialogs/cast-correction.js';
 import { renderCastMode } from '../components/cast-mode.js';
 import { renderCastMembers } from '../components/cast-members.js';
+import { renderSingleCastSelection } from '../components/single-cast-selection.js';
 
 function compactLine(value, limit = 180) {
   const line = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -37,6 +38,7 @@ export function renderCastView({ body, state, settings, services }) {
   body.append(el(doc, 'h3', {}, '人物侧写'), el(doc, 'p', { class: 'stpd-muted' }, state.cast?.mode === 'multi' ? `多人卡：${state.cast?.members?.length ?? 0} 人` : '单角色模式：根据角色卡与世界书整理'));
   body.append(renderCastMode({ doc, cast: state.cast ?? { mode: 'single' }, services }));
   if (state.cast?.mode === 'multi') body.append(renderCastMembers({ doc, body, cast: state.cast, services }));
+  else body.append(renderSingleCastSelection({ doc, cast: state.cast ?? { mode: 'single' }, services }));
   if (profile.name) body.append(el(doc, 'h4', {}, profile.name));
   const locked = el(doc, 'input', { type: 'checkbox', checked: state.cast?.locked });
   locked.onchange = () => runAction(() => services.lockCast?.(locked.checked), services.notice);
