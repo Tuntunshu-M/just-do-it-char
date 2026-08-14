@@ -84,4 +84,4 @@
 - [x] Synchronize runtime files into the SillyTavern extension directory.
 - [x] Test the full flow in the user's existing in-app SillyTavern tab. Blank random-event confirmation and persisted day/night switching passed; the CSS-template export action was invoked, but the browser control layer did not expose its blob download as a download event.
 - [x] Run `node --test`, syntax checks, and `git diff --check`.
-- [ ] Commit only public project files and push `HEAD:main` without force.
+- [x] Commit only public project files and push `HEAD:main` without force.
