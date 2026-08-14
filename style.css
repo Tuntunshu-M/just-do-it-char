@@ -134,7 +134,7 @@
 #st-proactive-director .stpd-tabs button:hover { color: var(--stpd-text); background: var(--stpd-hover); }
 #st-proactive-director .stpd-settings-nav {
   display: grid;
-  grid-template-columns: 34px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 34px repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
   padding: 5px 8px;
@@ -142,11 +142,14 @@
   border-bottom: 1px solid var(--stpd-border);
 }
 #st-proactive-director .stpd-settings-nav > button:not(.stpd-back) {
+  min-width: 0;
   min-height: 32px;
+  padding: 4px 2px;
   color: var(--stpd-muted);
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
+  white-space: nowrap;
   cursor: pointer;
 }
 #st-proactive-director .stpd-settings-nav > button[aria-selected="true"] { color: var(--stpd-text); border-bottom-color: var(--stpd-accent); }

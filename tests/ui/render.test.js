@@ -56,6 +56,12 @@ test('console module exports lifecycle contract', async () => {
   assert.doesNotMatch(text, /event\.target === overlay/);
 });
 
+test('settings navigation keeps all four tabs in one horizontal row', async () => {
+  const css = await (await import('node:fs/promises')).readFile(new URL('../../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.stpd-settings-nav\s*\{[\s\S]*grid-template-columns:\s*34px repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.stpd-settings-nav > button:not\(\.stpd-back\)\s*\{[\s\S]*white-space:\s*nowrap/);
+});
+
 test('console supports prompted manual events and persists editable settings', async () => {
   const text = await source();
   for (const label of ['事件想法', '让 AI 扩展', '让 char 策划旅行', 'select.onchange', 'agency.onchange', 'weight.onchange']) assert.match(text, new RegExp(label));
