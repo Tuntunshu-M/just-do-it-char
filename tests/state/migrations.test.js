@@ -38,6 +38,12 @@ test('global migration adds an empty installed-world-book selection', () => {
   assert.deepEqual(migrated.context.worldInfoBooks, {});
   assert.equal(migrated.context.worldInfoSelectionPolicy, 'preserve');
   assert.equal(migrated.defaults.revisionRetention, 3);
+  assert.deepEqual(migrated.profileGuidance, { gemini: false, claude: false });
+});
+
+test('global migration preserves independently enabled profile guidance', () => {
+  const migrated = migrateGlobalSettings({ profileGuidance: { gemini: true } });
+  assert.deepEqual(migrated.profileGuidance, { gemini: true, claude: false });
 });
 
 test('migration converts a legacy active event into one repository script once', () => {

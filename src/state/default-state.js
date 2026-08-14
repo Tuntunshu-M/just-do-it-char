@@ -62,6 +62,10 @@ export function createGlobalSettings() {
       revisionRetention: 3,
       consequencePermissions: {},
     },
+    profileGuidance: {
+      gemini: false,
+      claude: false,
+    },
     theme: {
       mode: 'night',
       enabled: false,

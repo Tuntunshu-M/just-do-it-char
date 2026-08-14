@@ -31,6 +31,10 @@ function fingerprint(value) {
   return (hash >>> 0).toString(36);
 }
 
+function enabledProfileGuidance(value = {}) {
+  return ['gemini', 'claude'].filter((name) => value?.[name] === true);
+}
+
 function hasUsableMultiProfile(state, cast) {
   const members = cast?.multiMembers?.length ? cast.multiMembers : cast?.members;
   return Boolean(cast?.multiProfileInitialized
@@ -59,10 +63,11 @@ function mergeCandidateMembers(existing = [], extracted = []) {
 
 export function createProfileService({ client, getCurrentChatKey = null, onStatus = null }) {
   const inFlight = new Map();
-  async function generate({ state, card, cast, entries, connection }) {
+  async function generate({ state, card, cast, entries, profileGuidance, connection }) {
     const optionsChatKey = state.chatKey;
     const sources = profileSources(card, entries, cast);
-    const sourceFingerprint = fingerprint(sources);
+    const guidance = enabledProfileGuidance(profileGuidance);
+    const sourceFingerprint = fingerprint({ sources, profileGuidance: guidance });
     const previous = { ...state.personalityProfile };
     if (connection?.mode !== 'independent' || !connection.endpoint || !connection.model) {
       state.personalityProfile = { ...state.personalityProfile, status: 'failed', error: '还没连接副 API' };
@@ -73,7 +78,7 @@ export function createProfileService({ client, getCurrentChatKey = null, onStatu
     await onStatus?.(state);
     try {
       const castMode = cast?.mode ?? 'single';
-      const result = await client.requestDirector({ context: sources, intent: { type: 'profile-character', castMode } }, connection);
+      const result = await client.requestDirector({ context: sources, intent: { type: 'profile-character', castMode, profileGuidance: guidance } }, connection);
       if ((getCurrentChatKey && getCurrentChatKey() !== optionsChatKey) || state.chatKey !== optionsChatKey || state.personalityProfile.activeFingerprint !== sourceFingerprint) return state.personalityProfile;
       state.personalityProfile = {
         status: 'ready', fingerprint: sourceFingerprint, activeFingerprint: sourceFingerprint, ignoredFingerprint: '', content: result.content,
@@ -102,7 +107,7 @@ export function createProfileService({ client, getCurrentChatKey = null, onStatu
   return {
     async ensureProfile(options) {
       const sources = profileSources(options.card, options.entries, options.cast);
-      const sourceFingerprint = fingerprint(sources);
+      const sourceFingerprint = fingerprint({ sources, profileGuidance: enabledProfileGuidance(options.profileGuidance) });
       const profile = options.state.personalityProfile;
       if (profile?.fingerprint && profile.fingerprint !== sourceFingerprint && profile.ignoredFingerprint !== sourceFingerprint) {
         profile.status = 'stale-pending';

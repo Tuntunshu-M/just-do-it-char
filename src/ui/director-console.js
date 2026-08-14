@@ -4,6 +4,7 @@ import { renderScriptsView } from './views/scripts.js';
 import { renderCastView } from './views/cast.js';
 import { renderPreferencesView } from './views/preferences.js';
 import { renderConnectionView } from './views/connection.js';
+import { renderProfileGuidanceView } from './views/profile-guidance.js';
 import { renderWorldInfoView } from './views/world-info.js';
 import { renderSnapshotsView } from './views/snapshots.js';
 import { renderAppearanceView } from './views/appearance.js';
@@ -20,7 +21,7 @@ const TABS = [
   ['preferences', '偏好'], ['snapshots', '副本'],
 ];
 
-const SETTINGS_TABS = [['connection', '连接'], ['diagnostics', '检查'], ['appearance', '外观']];
+const SETTINGS_TABS = [['connection', '连接'], ['profile', '侧写'], ['diagnostics', '检查'], ['appearance', '外观']];
 
 const REQUEST_PHASE_LABELS = {
   collecting: '采集中',
@@ -62,6 +63,7 @@ export function createDirectorConsole({ root, services }) {
     const shared = { body, settings, state, services, saveSettings, saveState, rerender: render };
     if (settingsOpen) {
       if (settingsActive === 'connection') renderConnectionView(shared);
+      else if (settingsActive === 'profile') renderProfileGuidanceView(shared);
       else if (settingsActive === 'diagnostics') renderDiagnosticsView(shared);
       else if (settingsActive === 'appearance') renderAppearanceView(shared);
       return;

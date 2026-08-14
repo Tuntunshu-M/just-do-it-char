@@ -210,6 +210,7 @@ export function initializeExtension() {
     card: hostAdapter.getCharacterData(),
     cast: state.cast,
     entries: settings.context.worldInfo ? cachedSelectedEntries() : [],
+    profileGuidance: settings.profileGuidance,
     connection: settings.connection,
   });
   const ensureCurrentProfile = async ({ notify = true } = {}) => {
