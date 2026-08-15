@@ -121,6 +121,28 @@ test('main connection extracts a wrapped output_text response', async () => {
   );
 });
 
+test('main connection passes intent metadata to adapter boundary diagnostics', async () => {
+  let metadata;
+  const adapter = {
+    showConfirm: async () => false,
+    generateDirector: async (_messages, options) => {
+      metadata = options;
+      options.onBoundary?.({ event: 'raw-request', intentType: options.intentType, promptLength: 12 });
+      return JSON.stringify(result);
+    },
+  };
+  const boundaries = [];
+  const client = createDirectorClient({ adapter });
+  await client.requestDirector(
+    { context: {}, intent: { type: 'plan-event' } },
+    { mode: 'main' },
+    (update) => boundaries.push(update),
+  );
+
+  assert.equal(metadata.intentType, 'plan-event');
+  assert.deepEqual(boundaries, [{ phase: 'boundary', event: 'raw-request', intentType: 'plan-event', promptLength: 12 }]);
+});
+
 test('client reports an explicit error when the API returns empty content', async () => {
   const client = createDirectorClient({ adapter: {}, fetchImpl: async () => ({
     ok: true,

@@ -102,6 +102,7 @@ export function createEventEngine(store) {
         return state;
       }
       if (decision === 'advance') {
+        if (reaction?.advanceSatisfied !== true || typeof reaction?.evidence !== 'string' || !reaction.evidence.trim()) return state;
         const current = event.steps?.[event.currentStepIndex];
         if (current) current.status = 'completed';
         event.currentStepIndex += 1;
@@ -115,24 +116,24 @@ export function createEventEngine(store) {
         }
         return state;
       }
-      if (decision === 'revise') {
-        const limit = Math.max(1, Math.min(3, Number(retention) || 3));
-        event.revisions ??= [];
-        event.revisions.push(revisionSnapshot(event, reaction.reason));
-        event.revisions = event.revisions.slice(-limit);
-        const completed = (event.steps ?? []).filter((step) => step.status === 'completed');
-        const completedIds = new Set(completed.map((step) => step.id));
-        const future = cloneValue(reaction.steps ?? []);
-        event.currentStepIndex = completed.length;
-        event.steps = [
-          ...completed,
-          ...normalizeSteps(future, 0, completedIds),
-        ];
-        if (future.length) {
-          event.status = state.activeScriptId ? 'running' : 'awaiting-user';
-          event.updatedAt = new Date().toISOString();
-          state.status = 'awaiting-user';
-          syncActiveAlias(state, event);
+    if (decision === 'revise') {
+      const limit = Math.max(1, Math.min(3, Number(retention) || 3));
+      event.revisions ??= [];
+      event.revisions.push(revisionSnapshot(event, reaction.reason));
+      event.revisions = event.revisions.slice(-limit);
+      const completed = (event.steps ?? []).filter((step) => step.status === 'completed');
+      const completedIds = new Set(completed.map((step) => step.id));
+      const future = cloneValue(reaction.steps ?? []);
+      event.currentStepIndex = completed.length;
+      event.steps = [
+        ...completed,
+        ...normalizeSteps(future, 0, completedIds),
+      ];
+      if (future.length) {
+        event.status = state.activeScriptId ? 'running' : 'awaiting-user';
+        event.updatedAt = new Date().toISOString();
+        state.status = 'awaiting-user';
+        syncActiveAlias(state, event);
         } else finishEvent(state, event);
       }
       return state;

@@ -153,7 +153,10 @@ export function createDirectorClient({ adapter, fetchImpl = globalThis.fetch, cl
       content = await requestIndependent(messages, { ...connection, onUpdate });
     } else if (connection.mode === 'main') {
       await remindForMainConnection(connection);
-      content = extractResponseContent(await adapter.generateDirector(messages));
+      content = extractResponseContent(await adapter.generateDirector(messages, {
+        intentType: intent?.type ?? 'plan-event',
+        onBoundary: (event) => onUpdate?.({ phase: 'boundary', ...event }),
+      }));
     } else {
       throw new Error(`Unknown director connection mode: ${connection.mode}`);
     }

@@ -54,10 +54,11 @@ test('multi profile requires independently identified members and relations', ()
   assert.throws(() => validateProfileResult({ content: '群像', citations: [] }, { castMode: 'multi' }), /members/);
 });
 
-function plannedResult({ steps = 5, clues = 3, category = 'daily' } = {}) {
+function plannedResult({ steps = 2, clues = 3, category = 'daily' } = {}) {
   return {
     event: {
       title: 'Plan', category, premise: '完整开端',
+      trigger: { mode: 'keywords', condition: '用户进入事件话题', keywords: ['事件'] },
       steps: Array.from({ length: steps }, (_, index) => ({ id: `s${index + 1}`, title: `阶段 ${index + 1}`, goal: `goal ${index + 1}`, activity: '{{char}}主动推进当前目标', splitSteps: ['start', 'advance'] })),
     },
     feedback: { classification: 'neutral', confidence: 1, reason: 'ok' },
@@ -86,11 +87,27 @@ test('planned scripts require a complete outline but do not require removed pane
   assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /premise/);
 });
 
-test('event schema enforces five to seven unique stages', () => {
-  assert.throws(() => validateDirectorResult(plannedResult({ steps: 4 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /5 to 7/);
-  assert.throws(() => validateDirectorResult(plannedResult({ steps: 8 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /5 to 7/);
+test('event schema accepts a compact two to four stage outline', () => {
+  assert.doesNotThrow(() => validateDirectorResult(plannedResult({ steps: 2 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+  assert.doesNotThrow(() => validateDirectorResult(plannedResult({ steps: 4 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+  assert.throws(() => validateDirectorResult(plannedResult({ steps: 1 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /2 to 4/);
+  assert.throws(() => validateDirectorResult(plannedResult({ steps: 8 }), { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /2 to 4/);
   const duplicate = plannedResult(); duplicate.event.steps[1].id = duplicate.event.steps[0].id;
   assert.throws(() => validateDirectorResult(duplicate, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /unique/);
+});
+
+test('event schema validates an explicit trigger contract', () => {
+  const result = plannedResult();
+  result.event.trigger = { mode: 'keywords', condition: '用户进入旅行话题', keywords: ['旅行'] };
+  assert.doesNotThrow(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }));
+  delete result.event.trigger.keywords;
+  assert.throws(() => validateDirectorResult(result, { type: 'plan-event', castMode: 'single', mainCategory: 'daily' }), /trigger keywords/i);
+});
+
+test('reaction schema requires evidence when advancing a stage', () => {
+  assert.throws(() => validateReactionResult({ decision: 'advance', advanceSatisfied: true }), /evidence/i);
+  assert.throws(() => validateReactionResult({ decision: 'advance', advanceSatisfied: false, evidence: 'no' }), /advanceSatisfied/i);
+  assert.doesNotThrow(() => validateReactionResult({ decision: 'advance', advanceSatisfied: true, evidence: 'User agreed.' }));
 });
 
 test('event schema enforces cast-specific foreshadowing counts and selected category', () => {

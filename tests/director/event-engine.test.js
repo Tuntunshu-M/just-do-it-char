@@ -77,7 +77,7 @@ test('reaction revisions retain bounded history and preserve occurred facts', as
     id: 'trip', title: 'Trip', facts: [{ id: 'met', text: 'Met at home', occurred: true }],
     steps: [{ id: 's1', goal: 'Invite' }, { id: 's2', goal: 'Buy tickets' }],
   });
-  await engine.applyReaction('c', 'f', { decision: 'advance', reason: 'accepted' }, 2);
+  await engine.applyReaction('c', 'f', { decision: 'advance', advanceSatisfied: true, evidence: 'User accepted.', reason: 'accepted' }, 2);
   assert.equal(state.activeEvent.currentStepIndex, 1);
   assert.equal(state.activeEvent.steps[0].status, 'completed');
   await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'changed mind', steps: [{ id: 's3', goal: 'Stay nearby' }] }, 2);
@@ -88,10 +88,38 @@ test('reaction revisions retain bounded history and preserve occurred facts', as
   assert.equal(state.activeEvent.steps.at(-1).id, 's5');
 });
 
+test('advance requires explicit satisfaction evidence for the current advance point', async () => {
+  const { state, engine } = fixture();
+  await engine.activatePlan('c', 'f', {
+    id: 'trip', title: 'Trip', steps: [{ id: 's1', advancePoint: 'user agrees to D city' }, { id: 's2' }],
+  });
+  await engine.applyReaction('c', 'f', { decision: 'advance', reason: 'sounds good' });
+  assert.equal(state.activeEvent.currentStepIndex, 0);
+  assert.equal(state.activeEvent.steps[0].status, 'current');
+  await engine.applyReaction('c', 'f', {
+    decision: 'advance', advanceSatisfied: true, evidence: 'User explicitly agreed to go to D city.',
+  });
+  assert.equal(state.activeEvent.currentStepIndex, 1);
+  assert.equal(state.activeEvent.steps[0].status, 'completed');
+});
+
+test('a refusal cannot advance and revision preserves completed facts and stages', async () => {
+  const { state, engine } = fixture();
+  await engine.activatePlan('c', 'f', {
+    id: 'trip', title: 'Trip', facts: [{ id: 'fact-1', text: 'Dinner was cooked', occurred: true }],
+    steps: [{ id: 's1', advancePoint: 'user agrees' }, { id: 's2', goal: 'book travel' }],
+  });
+  await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'User strongly refused', steps: [{ id: 's3', goal: 'find preferred destination' }] });
+  assert.equal(state.activeEvent.steps[0].id, 's3');
+  assert.equal(state.activeEvent.facts[0].text, 'Dinner was cooked');
+  assert.equal(state.activeEvent.currentStepIndex, 0);
+  assert.equal(state.activeEvent.steps[0].status, 'current');
+});
+
 test('restoring a revision only restores unfinished planning', async () => {
   const { state, engine } = fixture();
   await engine.activatePlan('c', 'f', { id: 'e', title: 'Plan', steps: [{ id: 'done', goal: 'Done' }, { id: 'old', goal: 'Old' }] });
-  await engine.applyReaction('c', 'f', { decision: 'advance' }, 3);
+  await engine.applyReaction('c', 'f', { decision: 'advance', advanceSatisfied: true, evidence: 'User completed the stage.' }, 3);
   await engine.applyReaction('c', 'f', { decision: 'revise', reason: 'change', steps: [{ id: 'new', goal: 'New' }] }, 3);
   const revisionId = state.activeEvent.revisions[0].id;
   await engine.restoreRevision('c', 'f', revisionId);

@@ -103,8 +103,8 @@ test('event intent composes multi-card stages, category tones, and anti-conspira
   assert.match(system.content, /编剧兼群像角色策划者/);
   assert.match(system.content, /保留全部.*cast\.members/s);
   assert.match(system.content, /每个阶段.*至少 1 名.*活跃人物/s);
-  assert.doesNotMatch(system.content, /每个阶段.*2-4.*活跃人物/s);
-  assert.match(system.content, /5-7.*阶段/);
+  assert.doesNotMatch(system.content, /每个阶段[^\n]*2-4[^\n]*活跃人物/);
+  assert.match(system.content, /2-4.*阶段/);
   assert.match(system.content, /4-6.*伏笔/);
   assert.match(system.content, /主类型.*daily/);
   assert.match(system.content, /辅助调性.*crisis/);
@@ -149,4 +149,12 @@ test('prepare-step injects only the current stage and eligible clues', () => {
   assert.match(system.content, /不得注入.*未来阶段/s);
   assert.match(system.content, /未成熟.*未揭示.*伏笔/s);
   assert.doesNotMatch(system.content, /"event"\s*:/);
+});
+
+test('reaction prompt requires a checked advance point and routes refusal to revision', () => {
+  const [system] = buildDirectorMessages({}, { type: 'evaluate-reaction' });
+  assert.match(system.content, /advanceSatisfied/);
+  assert.match(system.content, /evidence/);
+  assert.match(system.content, /拒绝|犹豫/);
+  assert.match(system.content, /revise/);
 });

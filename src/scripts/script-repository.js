@@ -28,6 +28,11 @@ export function normalizeScript(plan = {}, options = {}) {
     title: plan.title ?? '未命名剧本',
     category: plan.category ?? '',
     premise: plan.premise ?? '',
+    trigger: plan.trigger ? {
+      ...clone(plan.trigger),
+      status: plan.trigger.status ?? 'pending',
+      lastCheck: clone(plan.trigger.lastCheck ?? null),
+    } : null,
     steps,
     foreshadowing: clone(plan.foreshadowing ?? []),
     facts: clone(plan.facts ?? []),

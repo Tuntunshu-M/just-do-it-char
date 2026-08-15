@@ -93,3 +93,27 @@ test('diagnostics view marks current status and check results as independently s
   assert.ok(all(body).find((node) => node.className.includes('stpd-diagnostic-summary-scroll')));
   assert.ok(all(body).find((node) => node.className.includes('stpd-diagnostic-checks-scroll')));
 });
+
+test('diagnostics view exposes sanitized request boundary summaries for analysis', () => {
+  const doc = createDocument();
+  const body = doc.createElement('section');
+  const state = {
+    generation: { phase: 'completed' },
+    diagnostics: {
+      records: [{
+        id: 'r1', trigger: 'manual', status: 'success', stage: 'commit',
+        startedAt: '2026-08-14T10:00:00.000Z', durationMs: 120,
+        message: 'boundary=raw-request intentType=plan-event promptEmpty=false promptLength=42 systemPromptEmpty=false systemPromptLength=18 hostSource=host-module enteredHost=true; boundary=raw-response intentType=plan-event responseEmpty=false responseLength=96 responseType=string',
+      }],
+    },
+  };
+
+  renderDiagnosticsView({ body, state, services: {}, saveState() {}, rerender() {} });
+
+  const text = all(body).map((node) => node.textContent).join(' ');
+  assert.match(text, /请求边界摘要/);
+  assert.match(text, /promptLength=42/);
+  assert.match(text, /systemPromptLength=18/);
+  assert.match(text, /responseLength=96/);
+  assert.equal(text.includes('去D市'), false);
+});

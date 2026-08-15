@@ -35,6 +35,10 @@ export function createScriptRuntime({ store }) {
         script.status = 'running';
         script.currentStepIndex = 0;
         script.pendingTurn = null;
+        if (script.trigger) {
+          script.trigger.status = 'pending';
+          script.trigger.lastCheck = null;
+        }
         script.steps = normalizeRunningSteps(script.steps);
         script.updatedAt = new Date().toISOString();
         draft.activeScriptId = script.id;

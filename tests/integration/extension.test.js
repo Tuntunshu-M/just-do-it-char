@@ -25,6 +25,13 @@ test('extension entry exports lifecycle and keeps host access in adapter', async
   }
 });
 
+test('extension entry resolves the host raw generator at runtime', async () => {
+  const source = await readFile(new URL('../../index.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /from ['"]\.\.\/\.\.\/\.\.\/\.\.\/script\.js['"]/);
+  assert.match(source, /import\('\/script\.js'\)/);
+  assert.match(source, /generateRaw:\s*\(\.\.\.args\)\s*=>/);
+});
+
 test('script revision restore is wired to the script detail service name', async () => {
   const source = await readFile(new URL('../../index.js', import.meta.url), 'utf8');
   assert.match(source, /restoreScriptRevision:\s*async\s*\(scriptId,\s*revisionId\)/);

@@ -63,7 +63,12 @@ export function validateDirectorResult(value, intent = {}) {
     requireType(Array.isArray(value.event.steps), 'event steps are required');
     if (intent.type === 'plan-event') {
       requireType(typeof value.event.premise === 'string' && value.event.premise.trim(), 'event premise is required');
-      requireType(value.event.steps.length >= 5 && value.event.steps.length <= 7, 'event steps must contain 5 to 7 stages');
+      requireType(value.event.steps.length >= 2 && value.event.steps.length <= 4, 'event steps must contain 2 to 4 stages');
+      requireType(value.event.trigger && typeof value.event.trigger === 'object' && !Array.isArray(value.event.trigger), 'event trigger is required');
+      requireType(new Set(['keywords', 'phrases']).has(value.event.trigger.mode), 'event trigger mode is unknown');
+      requireType(typeof value.event.trigger.condition === 'string' && value.event.trigger.condition.trim(), 'event trigger condition is required');
+      const triggerTerms = value.event.trigger[value.event.trigger.mode];
+      requireType(Array.isArray(triggerTerms) && triggerTerms.some((term) => typeof term === 'string' && term.trim()), `event trigger ${value.event.trigger.mode} are required`);
       const stepIds = value.event.steps.map((step) => step?.id);
       requireType(stepIds.every((id) => typeof id === 'string' && id), 'event step id is required');
       requireType(new Set(stepIds).size === stepIds.length, 'event step ids must be unique');
@@ -136,6 +141,10 @@ export function validateDirectorResult(value, intent = {}) {
 export function validateReactionResult(value) {
   requireType(value && typeof value === 'object' && !Array.isArray(value), 'reaction root must be an object');
   requireType(REACTION_DECISIONS.has(value.decision), 'reaction decision is unknown');
+  if (value.decision === 'advance') {
+    requireType(value.advanceSatisfied === true, 'advanceSatisfied must be true to advance');
+    requireType(typeof value.evidence === 'string' && value.evidence.trim(), 'advance evidence is required');
+  }
   if (value.decision === 'revise') requireType(Array.isArray(value.steps) && value.steps.length > 0, 'revised steps are required');
   if (value.steps != null) requireType(Array.isArray(value.steps), 'reaction steps must be an array');
   return value;

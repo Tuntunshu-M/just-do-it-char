@@ -308,6 +308,8 @@
 #st-proactive-director .stpd-diagnostic-record-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 #st-proactive-director .stpd-diagnostic-record time { color: var(--stpd-muted); font-size: 12px; }
 #st-proactive-director .stpd-diagnostic-record p { overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+#st-proactive-director .stpd-diagnostic-boundaries { display: grid; gap: 1px; max-height: 220px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--stpd-border); border-radius: 4px; background: var(--stpd-border); }
+#st-proactive-director .stpd-diagnostic-boundary { margin: 0; padding: 8px 9px; overflow-wrap: anywhere; background: var(--stpd-bg); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 #st-proactive-director .stpd-diagnostic-status-pass,
 #st-proactive-director .stpd-diagnostic-status-success { border-left-color: var(--stpd-success); }
 #st-proactive-director .stpd-diagnostic-status-warning,

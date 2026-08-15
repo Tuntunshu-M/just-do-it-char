@@ -20,6 +20,14 @@ function summaryRow(doc, label, value) {
   return row;
 }
 
+function boundarySummaries(records = []) {
+  return records.flatMap((record) => String(record.message ?? '')
+    .split(';')
+    .map((message) => message.trim())
+    .filter((message) => message.startsWith('boundary='))
+    .map((message) => ({ record, message })));
+}
+
 export function renderDiagnosticsView({ body, state, services, saveState, rerender }) {
   const doc = body.ownerDocument;
   state.diagnostics ??= { records: [], lastCheck: null };
@@ -72,6 +80,15 @@ export function renderDiagnosticsView({ body, state, services, saveState, rerend
   const checksScroll = el(doc, 'div', { class: 'stpd-diagnostic-scroll stpd-diagnostic-checks-scroll', tabindex: '0', 'aria-label': '检查结果' });
   checksScroll.append(checks);
   body.append(checksScroll, el(doc, 'h3', {}, '最近记录'));
+
+  body.append(el(doc, 'h3', {}, '请求边界摘要'));
+  const boundaries = el(doc, 'div', { class: 'stpd-diagnostic-boundaries' });
+  const summaries = boundarySummaries(diagnostics.records);
+  if (!summaries.length) boundaries.append(el(doc, 'p', { class: 'stpd-muted' }, '暂无请求边界记录。'));
+  else for (const { record, message } of [...summaries].reverse()) {
+    boundaries.append(el(doc, 'p', { class: 'stpd-diagnostic-boundary' }, `${displayTime(record.startedAt)} · ${message}`));
+  }
+  body.append(boundaries);
 
   const records = el(doc, 'div', { class: 'stpd-diagnostic-records' });
   if (!diagnostics.records.length) records.append(el(doc, 'p', { class: 'stpd-muted' }, '当前聊天还没有事件生成记录。'));

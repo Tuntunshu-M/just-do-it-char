@@ -103,6 +103,62 @@ test('adapter uses SillyTavern 1.18 raw generation, normal generation, and Popup
   ]);
 });
 
+test('adapter uses the host module raw generator when getContext omits generateRaw', async () => {
+  const calls = [];
+  const adapter = createSillyTavernAdapter(() => ({
+    Popup: { show: { confirm: async () => false } },
+  }), {
+    generateRaw: async (options) => {
+      calls.push(options);
+      return 'director';
+    },
+  });
+
+  assert.equal(await adapter.generateDirector([
+    { role: 'system', content: '完整的导演规则' },
+    { role: 'user', content: '{"userText":"密封水箱"}' },
+  ]), 'director');
+  assert.deepEqual(calls, [{
+    prompt: '{"userText":"密封水箱"}',
+    systemPrompt: '完整的导演规则',
+  }]);
+});
+
+test('adapter reports sanitized raw generation boundary diagnostics', async () => {
+  const boundaries = [];
+  const adapter = createSillyTavernAdapter(() => ({}), {
+    generateRaw: async () => 'director response',
+  });
+
+  assert.equal(await adapter.generateDirector([
+    { role: 'system', content: 'system secret text' },
+    { role: 'user', content: 'prompt secret text' },
+  ], { intentType: 'plan-event', onBoundary: (event) => boundaries.push(event) }), 'director response');
+
+  assert.deepEqual(boundaries, [
+    {
+      event: 'raw-request',
+      mode: 'main',
+      intentType: 'plan-event',
+      promptEmpty: false,
+      promptLength: 18,
+      systemPromptEmpty: false,
+      systemPromptLength: 18,
+      hostSource: 'host-module',
+      enteredHost: true,
+    },
+    {
+      event: 'raw-response',
+      mode: 'main',
+      intentType: 'plan-event',
+      responseEmpty: false,
+      responseLength: 17,
+      responseType: 'string',
+    },
+  ]);
+  assert.equal(JSON.stringify(boundaries).includes('secret text'), false);
+});
+
 test('adapter can asynchronously load selected external world-book entries', async () => {
   const adapter = createSillyTavernAdapter(() => ({
     selected_world_info: 'lore',

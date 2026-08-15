@@ -17,14 +17,22 @@ test('the active script record remains authoritative through progress and comple
   const script = await repository.createDraft('chat', 'card', { title: 'Plan', steps: [{ id: 'one' }, { id: 'two' }] });
   await runtime.perform('chat', 'card', script.id);
 
-  await engine.applyReaction('chat', 'card', { decision: 'advance' });
+  await engine.applyReaction('chat', 'card', {
+    decision: 'advance',
+    advanceSatisfied: true,
+    evidence: 'User explicitly completed stage one.',
+  });
   let state = store.loadChat('chat', 'card');
   assert.strictEqual(state.activeEvent, state.scripts[0]);
   assert.equal(state.scripts[0].status, 'running');
   assert.equal(state.scripts[0].currentStepIndex, 1);
   assert.equal(state.scripts[0].steps[0].status, 'completed');
 
-  await engine.applyReaction('chat', 'card', { decision: 'advance' });
+  await engine.applyReaction('chat', 'card', {
+    decision: 'advance',
+    advanceSatisfied: true,
+    evidence: 'User explicitly completed stage two.',
+  });
   state = store.loadChat('chat', 'card');
   assert.equal(state.scripts[0].status, 'completed');
   assert.equal(state.activeScriptId, null);

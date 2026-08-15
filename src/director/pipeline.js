@@ -3,9 +3,50 @@ import { EXTENSION_PROMPT_KEY } from '../constants.js';
 import { startDiagnostic, updateDiagnostic } from '../diagnostics/records.js';
 import { formatDirectorDiagnostic } from './failure-reasons.js';
 
+const EXTENSION_PROMPT_TYPES = { IN_CHAT: 1 };
+const EXTENSION_PROMPT_ROLES = { SYSTEM: 0 };
+
 function generationState(phase, previous = {}, error = '') {
   const finished = ['idle', 'completed', 'failed'].includes(phase);
   return { ...previous, phase, startedAt: previous.startedAt ?? new Date().toISOString(), finishedAt: finished ? new Date().toISOString() : null, error };
+}
+
+function boundaryMessage(event = {}) {
+  const fields = [
+    `boundary=${event.event ?? 'unknown'}`,
+    `intentType=${event.intentType ?? 'unknown'}`,
+  ];
+  for (const key of ['enteredHost', 'hostSource', 'promptEmpty', 'promptLength', 'systemPromptEmpty', 'systemPromptLength', 'responseEmpty', 'responseLength', 'responseType']) {
+    if (event[key] !== undefined) fields.push(`${key}=${event[key]}`);
+  }
+  return fields.join(' ');
+}
+
+function triggerMatches(trigger, text) {
+  const value = String(text ?? '').trim();
+  if (!value) return false;
+  const phrases = Array.isArray(trigger?.phrases) ? trigger.phrases : [];
+  const keywords = Array.isArray(trigger?.keywords) ? trigger.keywords : [];
+  return phrases.some((phrase) => String(phrase).trim() && value.includes(String(phrase).trim()))
+    || keywords.some((keyword) => String(keyword).trim() && value.includes(String(keyword).trim()));
+}
+
+function recordTriggerCheck(event, status, reason, messageId) {
+  event.trigger ??= {};
+  event.trigger.status = status;
+  event.trigger.lastCheck = {
+    status,
+    reason,
+    source: 'user-message',
+    messageId: String(messageId ?? ''),
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+function buildCompletedSteps(event) {
+  return (event?.steps ?? [])
+    .filter((step) => step?.status === 'completed')
+    .map((step) => ({ id: step.id, title: step.title, goal: step.goal, advancePoint: step.advancePoint, status: step.status }));
 }
 
 export function createDirectorPipeline({ adapter, store, client, policy, personality, engine, repository, collector, scheduler, onProgress, onOutcome, onNotice, onScriptCreated }) {
@@ -20,6 +61,13 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
 
   async function request(context, intent, connection, state) {
     const result = await client.requestDirector({ context, intent }, connection, (update) => {
+      if (update.phase === 'boundary' && state.__activeDiagnosticId) {
+        const previous = state.diagnostics?.records?.find((item) => item.id === state.__activeDiagnosticId)?.message;
+        const next = [previous, boundaryMessage(update)].filter(Boolean).join('; ');
+        updateDiagnostic(state, state.__activeDiagnosticId, { message: next }, { secrets: connection ?? {} });
+        onProgress?.(state);
+        return;
+      }
       state.generation.phase = update.phase;
       onProgress?.(state);
     });
@@ -33,7 +81,9 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
   }
 
   async function finish(state, diagnostic, stage, status, message, secrets) {
-    const record = updateDiagnostic(state, diagnostic.id, { status, stage, message }, { secrets });
+    const previous = state.diagnostics?.records?.find((item) => item.id === diagnostic.id)?.message;
+    const combined = previous?.startsWith('boundary=') ? `${previous}; result=${message}` : message;
+    const record = updateDiagnostic(state, diagnostic.id, { status, stage, message: combined }, { secrets });
     await store.saveChat?.(state);
     onProgress?.(state);
     try { await onOutcome?.({ ...record }); } catch { /* notices must not break host generation */ }
@@ -55,6 +105,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     }
     const secrets = settings.connection ?? {};
     const diagnostic = startDiagnostic(state, { trigger: intent.type, stage: 'collecting' }, { secrets });
+    state.__activeDiagnosticId = diagnostic.id;
     let stage = 'collecting';
     try {
       await persist(state, 'collecting');
@@ -97,6 +148,8 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       await persist(state, 'failed', error.message);
       await finish(state, diagnostic, stage, 'failed', formatDirectorDiagnostic(error), secrets);
       throw error;
+    } finally {
+      delete state.__activeDiagnosticId;
     }
   }
 
@@ -106,9 +159,36 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     const event = state.activeEvent;
     if (!settings.enabled || !event || state.status !== 'awaiting-user') return { skipped: true };
     if (event.pendingTurn?.messageId === messageId) return { reused: true };
+    if (event.trigger?.status === 'pending') {
+      if (!triggerMatches(event.trigger, text)) {
+        recordTriggerCheck(event, 'pending', 'trigger condition not matched', messageId);
+        await store.saveChat?.(state); onProgress?.(state);
+        return { status: 'waiting-trigger' };
+      }
+      recordTriggerCheck(event, 'ready', 'trigger condition matched', messageId);
+      if (event.trigger) event.trigger.completed = true;
+      await store.saveChat?.(state); onProgress?.(state);
+    }
     const context = await collector(adapter, state, settings);
     if (event.pendingTurn && event.pendingTurn.messageId !== messageId) {
-      const reaction = await request({ ...context, latestUserMessage: text, activeEvent: event }, { type: 'evaluate-reaction' }, settings.connection, state);
+      const current = event.steps?.[event.currentStepIndex];
+      const reaction = await request({
+        latestUserMessage: text,
+        currentStep: current,
+        completedSteps: buildCompletedSteps(event),
+        activeEvent: {
+          id: event.id,
+          title: event.title,
+          category: event.category,
+          premise: event.premise,
+          currentStepIndex: event.currentStepIndex ?? 0,
+          steps: current ? [current] : [],
+          facts: state.activeEvent?.facts ?? [],
+        },
+        personalityProfile: context.personalityProfile,
+        preferences: state.preference ?? {},
+        sceneSafety: state.sceneSafety ?? {},
+      }, { type: 'evaluate-reaction' }, settings.connection, state);
       await engine.applyReaction(chatKey, state.characterFingerprint, reaction, settings.defaults?.revisionRetention ?? 3);
       Object.assign(state, store.loadChat(chatKey));
     }
@@ -118,6 +198,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     const stepContext = {
       latestUserMessage: text,
       currentStep: current,
+      completedSteps: buildCompletedSteps(state.activeEvent),
       activeCharacters: current.activeCharacterIds ?? current.characterIds ?? [],
       occurredFacts: state.activeEvent?.facts ?? [],
       characterKnowledge: context.cast?.members?.map((member) => ({ id: member.id, knowledgeState: member.knowledgeState ?? '' })) ?? [],
@@ -126,7 +207,8 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
     };
     const result = await request(stepContext, { type: 'prepare-step' }, settings.connection, state);
     if (token !== generation || adapter.getCurrentChatKey() !== chatKey) return { cancelled: true };
-    await adapter.injectPrompt(EXTENSION_PROMPT_KEY, result.injection);
+    await adapter.injectPrompt(EXTENSION_PROMPT_KEY, result.injection, EXTENSION_PROMPT_TYPES.IN_CHAT, 0, false, EXTENSION_PROMPT_ROLES.SYSTEM);
+    if (state.activeEvent.trigger) state.activeEvent.trigger.status = 'active';
     state.activeEvent.pendingTurn = { messageId, stepId: current.id, injection: result.injection };
     state.lastInjection = result.injection;
     state.status = 'awaiting-user';
@@ -152,7 +234,7 @@ export function createDirectorPipeline({ adapter, store, client, policy, persona
       return chatKey ? run((token) => prepareTurn(text, messageId, token, chatKey), chatKey) : Promise.resolve({ skipped: true, reason: 'no-chat' });
     },
     clearTurnInjection: async ({ resetTurn = false } = {}) => {
-      await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '');
+      await adapter.injectPrompt(EXTENSION_PROMPT_KEY, '', EXTENSION_PROMPT_TYPES.IN_CHAT, 0, false, EXTENSION_PROMPT_ROLES.SYSTEM);
       const chatKey = adapter.getCurrentChatKey();
       const state = chatKey && store.loadChat(chatKey);
       if (resetTurn && state?.activeEvent?.pendingTurn) {

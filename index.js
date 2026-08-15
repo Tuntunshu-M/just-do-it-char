@@ -25,7 +25,13 @@ function resolveContext() {
   return globalThis.SillyTavern?.getContext?.() ?? {};
 }
 
-export const hostAdapter = createSillyTavernAdapter(resolveContext);
+// Load the host module only when the main connection actually generates. This keeps
+// the extension entry importable in tests while resolving SillyTavern's real API.
+const hostApi = {
+  generateRaw: (...args) => import('/script.js').then(({ generateRaw }) => generateRaw(...args)),
+};
+
+export const hostAdapter = createSillyTavernAdapter(resolveContext, hostApi);
 let consoleInstance;
 let runtime;
 

@@ -8,6 +8,12 @@ function hasFunction(value) {
   return typeof value === 'function';
 }
 
+function responseLength(value) {
+  if (typeof value === 'string') return value.length;
+  if (value == null) return 0;
+  try { return JSON.stringify(value).length; } catch { return 0; }
+}
+
 function normalizeWorldEntries(entries) {
   const list = Array.isArray(entries)
     ? entries
@@ -26,7 +32,7 @@ function normalizeWorldBook(name, book) {
   };
 }
 
-export function createSillyTavernAdapter(contextProvider) {
+export function createSillyTavernAdapter(contextProvider, hostApi = {}) {
   const adapter = {
     get capabilities() {
       const host = getHost(contextProvider);
@@ -36,9 +42,9 @@ export function createSillyTavernAdapter(contextProvider) {
         character: Array.isArray(host.characters) && host.characterId !== undefined,
         messages: Array.isArray(host.chat),
         promptInjection: hasFunction(host.setExtensionPrompt),
-        rawGeneration: hasFunction(host.generateRaw),
+        rawGeneration: hasFunction(host.generateRaw) || hasFunction(hostApi.generateRaw),
         normalGeneration: hasFunction(host.generate),
-        generation: hasFunction(host.generate) && hasFunction(host.generateRaw),
+        generation: hasFunction(host.generate) && (hasFunction(host.generateRaw) || hasFunction(hostApi.generateRaw)),
         settings: hasFunction(host.saveSettingsDebounced),
         chatState: hasFunction(host.saveMetadataDebounced) || hasFunction(host.saveMetadata),
         confirmation: hasFunction(host.Popup?.show?.confirm) || hasFunction(host.popup?.confirm),
@@ -127,12 +133,34 @@ export function createSillyTavernAdapter(contextProvider) {
       return getHost(contextProvider).setExtensionPrompt?.(...args);
     },
 
-    generateDirector(messages) {
-      const generateRaw = getHost(contextProvider).generateRaw;
+    async generateDirector(messages, options = {}) {
+      const host = getHost(contextProvider);
+      const hostSource = hasFunction(host.generateRaw) ? 'context' : 'host-module';
+      const generateRaw = host.generateRaw ?? hostApi.generateRaw;
       if (!hasFunction(generateRaw)) throw new Error('SillyTavern raw generation capability is unavailable');
       const systemPrompt = messages.filter((message) => message.role === 'system').map((message) => message.content).join('\n\n');
       const prompt = messages.filter((message) => message.role !== 'system').map((message) => message.content).join('\n\n');
-      return generateRaw({ prompt, systemPrompt });
+      options.onBoundary?.({
+        event: 'raw-request',
+        mode: 'main',
+        intentType: options.intentType ?? 'unknown',
+        promptEmpty: !prompt.trim(),
+        promptLength: prompt.length,
+        systemPromptEmpty: !systemPrompt.trim(),
+        systemPromptLength: systemPrompt.length,
+        hostSource,
+        enteredHost: true,
+      });
+      const response = await generateRaw({ prompt, systemPrompt });
+      options.onBoundary?.({
+        event: 'raw-response',
+        mode: 'main',
+        intentType: options.intentType ?? 'unknown',
+        responseEmpty: responseLength(response) === 0,
+        responseLength: responseLength(response),
+        responseType: response == null ? 'empty' : typeof response,
+      });
+      return response;
     },
 
     generateReply() {

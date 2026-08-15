@@ -121,7 +121,8 @@ ${categoryRules(intent)}
 题材 genre 是独立世界层，不参与日常/危机/色情权重。规则怪谈和无限流必须维护规则账本，不得静默改写公开规则。
 剧情内容只能来自当前角色卡、所选世界书、当前聊天上下文和本次事件想法。下方结构示例仅供参考，禁止照抄示例内容作为剧情；不得引入当前来源中不存在的无关旧剧本情节、人物、地点、道具、案件或伏笔。
 必须完整写出非空的剧情大纲，冲突、高潮和结局统一整合在大纲中，不得省略、留空、写“待定”或用占位语敷衍。
-输出完整起承转合。event.steps 必须包含 5-7 个不同阶段和唯一 id；每阶段必须使用“小标题 + char 的具体行为”格式，title 是行动导向的小标题，activity 是唯一的角色主动活动字段；每阶段必须包含非空 splitSteps 数组，列出至少 2 个该活动的可执行步骤；每阶段包含角色主动目标、角色主动活动、结束推进点${multi ? '、至少 1 名 activeCharacterIds、每名活跃人物的目标与用具体姓名描述的行动、人物间互动；多人阶段互动字段绝对不得包含 user、{{user}} 或“用户”' : ''}。
+输出完整起承转合。event.steps 必须包含 2-4 个短而可验证的不同阶段和唯一 id；每阶段必须使用“小标题 + char 的具体行为”格式，title 是行动导向的小标题，activity 是唯一的角色主动活动字段；每阶段必须包含非空 splitSteps 数组，列出至少 2 个该活动的可执行步骤；每阶段包含角色主动目标、角色主动活动、结束推进点${multi ? '、至少 1 名 activeCharacterIds、每名活跃人物的目标与用具体姓名描述的行动、人物间互动；多人阶段互动字段绝对不得包含 user、{{user}} 或“用户”' : ''}。
+必须为事件生成独立的 trigger：mode 只能是 keywords 或 phrases；condition 是简短的触发条件说明；对应数组必须包含 1-5 个可由本地直接匹配的中文关键词或短语。只有用户消息命中这些词/短语后，才允许开始注入阶段 1；不要把触发条件写成需要再次调用 AI 判断的模糊描述。
 剧本不得预设 user 尚未在 userinput/latestUserMessage 中表达的行动、决定、受伤、摔倒或结果。只能响应 user 已明确描述或正在发生的状态，并始终给 user 留出选择空间。
 foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现、埋设阶段、回收阶段、回收方式、影响及可判断的成熟/揭示条件。每条还必须包含 status（只能是“已回收”“未注入”“使用中”“待使用”）和 connectedStepTitle（必须逐字等于 event.steps 中一个真实 title），对应显示格式为“[状态]伏笔内容[连接阶段标题]”。规划时保存全部阶段和伏笔，但 injection 只写当前第一阶段所需的紧凑幕后指令，不写完整剧本。
 创建事件时以下字段都必须保留，结构示例仅供参考，禁止照抄示例内容（数组省略的同类项仍必须达到规定数量）：
@@ -130,6 +131,7 @@ foreshadowing 必须包含 ${clueCount} 个伏笔，说明来源、表面呈现�
     "title": "简短事件名",
     "category": "${intent.mainCategory ?? 'daily'}",
     "premise": "完整剧情大纲，概述开端、发展、转折、高潮与结局",
+    "trigger": { "mode": "keywords", "condition": "用户明确进入本事件话题", "keywords": ["可匹配关键词"] },
     "steps": [
       ${stepExample}
     ]
@@ -156,8 +158,8 @@ feedback.classification 只能是 accept、reject、hesitate、redirect、neutra
 }
 
 function reactionContract() {
-  return `判断 user 对上一阶段的真实反馈，只能输出 decision 为 advance、revise、neutral 或 stop。拒绝、迟疑、沉默和转移话题必须按实际含义处理，不得曲解为同意。
-输出 { "decision": "neutral", "reason": "简短依据" }。revise 时额外提供完整的后续 steps 数组；不得改写已发生事实。`;
+  return `判断 user 对当前阶段的真实反馈，只能输出 decision 为 advance、revise、neutral 或 stop。只有当前阶段的 advancePoint 被 user 最新消息明确满足时，才允许 advance；必须同时返回 advanceSatisfied:true 和非空 evidence，引用或概括这条消息。无法确认时返回 advanceSatisfied:false 或 neutral。明确拒绝或强烈犹豫必须使用 revise，并结合人物侧写、用户意愿优先权重和不可改写的已发生事实重新规划后续阶段。
+输出 { "decision": "neutral", "advanceSatisfied": false, "evidence": "", "reason": "简短依据" }。revise 时还必须提供完整的后续 steps 数组，不得改写已发生事实。`;
 }
 
 function stepContract() {
